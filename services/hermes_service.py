@@ -1,35 +1,8 @@
-import subprocess
-
-from config import HERMES_CMD
+from core.ai import generate_reply
 
 
-def ask_hermes(prompt):
+def ask_hermes(prompt, history=None):
     try:
-        result = subprocess.run(
-            [
-                HERMES_CMD,
-                "chat",
-                "-q",
-                prompt,
-                "-Q",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=180,
-        )
-
-        output = result.stdout.strip()
-
-        if not output:
-            output = result.stderr.strip()
-
-        if not output:
-            output = "Hermes returned no output."
-
-        return output
-
-    except subprocess.TimeoutExpired:
-        return "Hermes timed out."
-
+        return generate_reply(prompt, history)
     except Exception as e:
         return f"Error: {e}"
