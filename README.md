@@ -17,6 +17,13 @@ telegram-agent/
 │
 ├── bot.py
 ├── config.py
+├── docs/
+├── handlers/
+├── core/
+├── memory/
+├── services/
+├── tests/
+├── utils/
 ├── .env
 ├── .gitignore
 └── README.md

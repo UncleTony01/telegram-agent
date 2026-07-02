@@ -4,8 +4,9 @@ from memory.conversation_memory import (
     clear_history,
 )
 
+from routers.command_router import detect_command
 from services.hermes_service import ask_hermes
-from services.market_service import build_market_context, extract_symbols
+from services.okx_service import build_market_context, extract_symbols
 from services.telegram_service import send_message
 
 
@@ -37,7 +38,11 @@ def handle_message(chat_id, text):
     market_context = build_market_context(symbols)
 
     if market_context:
-        prompt = f"{text}\n\n{market_context}"
+        prompt = (
+            f"{market_context}\n\n"
+            f"---\n\n"
+            f"User request: {text}"
+        )
     else:
         prompt = text
 

@@ -5,7 +5,7 @@ import traceback
 from pathlib import Path
 
 from config import BOT_TOKEN, CHAT_ID
-from handlers.message_handler import handle_message
+from core.command_router import route_command
 from services.telegram_service import get_updates
 from utils.chat_filter import should_process_chat
 
@@ -50,7 +50,7 @@ while True:
                 if not should_process_chat(chat_id, CHAT_ID, bot_id):
                     continue
 
-                handle_message(chat_id, message["text"])
+                route_command(chat_id, message["text"])
 
         time.sleep(2)
 
