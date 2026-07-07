@@ -8,6 +8,9 @@ from routers.command_router import detect_command
 from services.hermes_service import ask_hermes
 from services.okx_service import build_market_context, extract_symbols
 from services.telegram_service import send_message
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def handle_message(chat_id, text):
@@ -38,10 +41,21 @@ def handle_message(chat_id, text):
     market_context = build_market_context(symbols)
 
     if market_context:
+        logger.info(
+            "Injected OKX market context for: %s",
+            ", ".join(symbols)
+        )
         prompt = (
+            "User Question\n\n"
+            f"{text}\n\n"
+            "========================\n\n"
+            "LIVE MARKET DATA\n\n"
             f"{market_context}\n\n"
-            f"---\n\n"
-            f"User request: {text}"
+            "========================\n\n"
+            "Answer the user using both\n"
+            "the live market data\n"
+            "and your trading knowledge.\n\n"
+            "Explain your reasoning."
         )
     else:
         prompt = text

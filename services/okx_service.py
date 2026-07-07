@@ -409,10 +409,162 @@ def get_open_interest(
     }
 
 
-def get_market_overview(symbol: str) -> Dict[str, Any]:
-    """Aggregate ticker + funding + OI into a single overview dict.
+def _extract_indicator_value(
+    payload: Any,
+    indicator_name: str,
+    *,
+    period: Optional[int] = None,
+) -> Optional[float]:
+    """Extract the latest numeric value from an OKX indicator CLI payload."""
+    if not isinstance(payload, list):
+        return None
 
-    This is a convenience method that calls three endpoints and merges the
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+
+        data_items = item.get("data")
+        if not isinstance(data_items, list):
+            continue
+
+        for data_item in data_items:
+            if not isinstance(data_item, dict):
+                continue
+
+            timeframes = data_item.get("timeframes")
+            if not isinstance(timeframes, dict):
+                continue
+
+            for timeframe in timeframes.values():
+                if not isinstance(timeframe, dict):
+                    continue
+
+                indicators = timeframe.get("indicators")
+                if not isinstance(indicators, dict):
+                    continue
+
+                series = indicators.get(indicator_name)
+                if not isinstance(series, list):
+                    continue
+
+                for entry in reversed(series):
+                    if not isinstance(entry, dict):
+                        continue
+
+                    values = entry.get("values")
+                    if not isinstance(values, dict):
+                        continue
+
+                    if period is not None:
+                        period_key = str(period)
+                        if period_key in values:
+                            return _float(values[period_key])
+
+                    numeric_values: List[float] = []
+                    for value in values.values():
+                        parsed = _float(value)
+                        if parsed is not None:
+                            numeric_values.append(parsed)
+
+                    if numeric_values:
+                        return numeric_values[-1]
+
+    return None
+
+
+def get_market_indicators(symbol: str) -> Dict[str, Any]:
+    """Fetch RSI and EMA indicators for a symbol via the OKX CLI."""
+    inst = _to_inst_id(symbol)
+    indicators: Dict[str, Any] = {
+        "rsi": None,
+        "ema20": None,
+        "ema50": None,
+        "trend": "",
+    }
+
+    try:
+        rsi_payload = _run_okx(
+            [
+                "market",
+                "indicator",
+                "rsi",
+                inst,
+                "--bar",
+                "1Dutc",
+                "--limit",
+                "1",
+            ]
+        )
+        indicators["rsi"] = _extract_indicator_value(rsi_payload, "RSI", period=14)
+    except OKXError as exc:
+        logger.warning("get_market_indicators RSI failed: %s", exc)
+
+    try:
+        ema20_payload = _run_okx(
+            [
+                "market",
+                "indicator",
+                "ema",
+                inst,
+                "--bar",
+                "1Dutc",
+                "--limit",
+                "1",
+                "--params",
+                "20",
+            ]
+        )
+        indicators["ema20"] = _extract_indicator_value(
+            ema20_payload, "EMA", period=20
+        )
+    except OKXError as exc:
+        logger.warning("get_market_indicators EMA20 failed: %s", exc)
+
+    try:
+        ema50_payload = _run_okx(
+            [
+                "market",
+                "indicator",
+                "ema",
+                inst,
+                "--bar",
+                "1Dutc",
+                "--limit",
+                "1",
+                "--params",
+                "50",
+            ]
+        )
+        indicators["ema50"] = _extract_indicator_value(
+            ema50_payload, "EMA", period=50
+        )
+    except OKXError as exc:
+        logger.warning("get_market_indicators EMA50 failed: %s", exc)
+
+    price = None
+    try:
+        ticker = get_ticker(symbol)
+        price = ticker.get("price_usd")
+    except OKXError as exc:
+        logger.warning("get_market_indicators ticker failed: %s", exc)
+
+    ema20 = indicators.get("ema20")
+    ema50 = indicators.get("ema50")
+    if price is not None and ema20 is not None and ema50 is not None:
+        if price > ema20 > ema50:
+            indicators["trend"] = "Bullish"
+        elif price < ema20 < ema50:
+            indicators["trend"] = "Bearish"
+        else:
+            indicators["trend"] = "Neutral"
+
+    return indicators
+
+
+def get_market_overview(symbol: str) -> Dict[str, Any]:
+    """Aggregate ticker + funding + OI + indicators into a single overview dict.
+
+    This is a convenience method that calls several endpoints and merges the
     results. If any sub-call fails, the missing keys are simply ``None``
     rather than raising.
 
@@ -465,6 +617,20 @@ def get_market_overview(symbol: str) -> Dict[str, Any]:
         overview["open_interest_usd"] = oi.get("oi_usd")
     except OKXError as exc:
         logger.warning("get_market_overview OI failed: %s", exc)
+
+    # Technical indicators
+    try:
+        indicators = get_market_indicators(symbol)
+        overview.update(
+            {
+                "rsi": indicators.get("rsi"),
+                "ema20": indicators.get("ema20"),
+                "ema50": indicators.get("ema50"),
+                "trend": indicators.get("trend"),
+            }
+        )
+    except OKXError as exc:
+        logger.warning("get_market_overview indicators failed: %s", exc)
 
     return overview
 
@@ -522,6 +688,10 @@ def build_okx_context(symbol: str) -> str:
         f"24h High:        {_fmt_price(overview.get('high_24h_usd'))}",
         f"24h Low:         {_fmt_price(overview.get('low_24h_usd'))}",
         f"24h Volume:      {_fmt_big(overview.get('volume_usd'))}",
+        f"RSI:             {overview.get('rsi') if overview.get('rsi') is not None else 'n/a'}",
+        f"EMA20:           {_fmt_price(overview.get('ema20'))}",
+        f"EMA50:           {_fmt_price(overview.get('ema50'))}",
+        f"Trend:           {overview.get('trend') if overview.get('trend') else 'n/a'}",
     ]
 
     bid = overview.get("bid_price")
