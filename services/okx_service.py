@@ -632,6 +632,18 @@ def get_market_overview(symbol: str) -> Dict[str, Any]:
     except OKXError as exc:
         logger.warning("get_market_overview indicators failed: %s", exc)
 
+    try:
+        from services.trade_decision import generate_trade_decision
+        overview["trade_decision"] = generate_trade_decision(overview)
+    except Exception as exc:
+        logger.error("Failed to generate trade decision in get_market_overview: %s", exc)
+
+    try:
+        from services.probability_engine import calculate_market_probability
+        overview["probability"] = calculate_market_probability(overview)
+    except Exception as exc:
+        logger.error("Failed to generate probability in get_market_overview: %s", exc)
+
     return overview
 
 
@@ -659,12 +671,16 @@ def build_market_context(symbols: List[str]) -> str:
         block = build_okx_context(sym)
         if block:
             blocks.append(block)
-
     return "Live Market Data\n\n" + "\n\n".join(blocks) if blocks else ""
 
 
 def build_okx_context(symbol: str) -> str:
-    """Build a human-readable market data block for an OKX instrument.
+    """Build a professional institutional-style report for an OKX instrument.
+
+    The report is structured in three layers:
+    1. UNCLE TONY QUICK READ — executive summary banner
+    2. Market Probability — ranked scenarios + evidence + trade plan
+    3. Detailed Market Data — all raw indicator values
 
     Parameters
     ----------
@@ -680,8 +696,128 @@ def build_okx_context(symbol: str) -> str:
     if not overview or overview.get("price_usd") is None:
         return ""
 
+    sym = symbol.upper()
+
+    # ── probability already computed in get_market_overview ───────────────────
+    probability = overview.get("probability")
+
+    # ── trade_decision: re-use cached or re-derive ────────────────────────────
+    decision = overview.get("trade_decision")
+    if decision is None:
+        try:
+            from services.trade_decision import generate_trade_decision
+            decision = generate_trade_decision(overview)
+            overview["trade_decision"] = decision
+        except Exception as exc:
+            logger.error("build_okx_context trade_decision error: %s", exc)
+
+    # ── helper shorthands ─────────────────────────────────────────────────────
+    def _stars(n: int) -> str:
+        return "★" * n + "☆" * (5 - n)
+
+    # ── LAYER 1: Quick Read banner ────────────────────────────────────────────
+    sep = "=" * 48
+
+    # Derive banner values from probability (preferred) or trade_decision
+    if probability is not None:
+        banner_bias   = probability.most_likely.replace(" Continuation", "").replace(" Breakdown", "").replace(" Consolidation", " Sideways")
+        banner_conf   = f"{probability.confidence}%"
+        banner_qual   = _stars(probability.trade_quality)
+        banner_action = probability.recommended_action
+    elif decision is not None:
+        banner_bias   = decision.market_bias
+        banner_conf   = f"{decision.confidence}%"
+        banner_qual   = _stars(decision.trade_quality)
+        banner_action = decision.recommended_action
+    else:
+        banner_bias   = "Unknown"
+        banner_conf   = "n/a"
+        banner_qual   = _stars(2)
+        banner_action = "WAIT"
+
     lines = [
-        f"── {symbol.upper()}-USDT (OKX) ──",
+        sep,
+        "UNCLE TONY QUICK READ",
+        "",
+        f"Asset:            {sym}",
+        f"Bias:             {banner_bias}",
+        f"Confidence:       {banner_conf}",
+        f"Trade Quality:    {banner_qual}",
+        f"Recommended:      {banner_action}",
+        sep,
+    ]
+
+    # ── LAYER 2a: Market Probability (ranked scenarios) ───────────────────────
+    if probability is not None:
+        # Sort scenarios highest → lowest for ranking
+        scenarios = sorted(
+            [
+                ("Bullish Continuation", probability.bullish_probability),
+                ("Sideways Consolidation", probability.sideways_probability),
+                ("Bearish Breakdown", probability.bearish_probability),
+            ],
+            key=lambda t: t[1],
+            reverse=True,
+        )
+        rank_labels = ["Primary Scenario", "Secondary Scenario", "Low Probability Scenario"]
+
+        lines.append("")
+        lines.append("Market Probability")
+        lines.append("")
+        for idx, (scenario_name, pct) in enumerate(scenarios):
+            label = rank_labels[idx] if idx < len(rank_labels) else ""
+            lines.append(f"{label}:   {scenario_name}   {pct}%")
+
+        lines.append("")
+        lines.append(f"Most Likely:      {probability.most_likely}")
+        lines.append(f"Confidence:       {probability.confidence}%")
+
+        # Evidence
+        if probability.reasoning:
+            lines.append("")
+            lines.append("Evidence")
+            for r in probability.reasoning:
+                lines.append(f"• {r}")
+
+    # ── LAYER 2b: Trade Plan ──────────────────────────────────────────────────
+    if probability is not None and probability.risk_reward is not None:
+        price = overview.get("price_usd")
+        ema20 = overview.get("ema20")
+        low24 = overview.get("low_24h_usd")
+        high24 = overview.get("high_24h_usd")
+
+        action = probability.recommended_action
+        if action in ("BUY", "BUY ON BREAKOUT", "WAIT FOR BREAKOUT"):
+            support_candidates = [v for v in (ema20, low24) if v is not None and v < (price or 0)]
+            entry_val  = f"{_fmt_price(high24)} breakout" if high24 else _fmt_price(price)
+            stop_val   = _fmt_price(max(support_candidates)) if support_candidates else "n/a"
+            target_val = _fmt_price(high24 * 1.025) if high24 else "n/a"
+        elif action in ("SELL", "CAUTION — BEARISH BIAS"):
+            resistance_candidates = [v for v in (ema20, high24) if v is not None and v > (price or 0)]
+            entry_val  = _fmt_price(low24) if low24 else _fmt_price(price)
+            stop_val   = _fmt_price(min(resistance_candidates)) if resistance_candidates else "n/a"
+            target_val = _fmt_price(low24 * 0.975) if low24 else "n/a"
+        else:
+            entry_val  = "Wait for setup"
+            stop_val   = "n/a"
+            target_val = "n/a"
+
+        rr_str = f"{probability.risk_reward:.2f} : 1"
+
+        lines.extend([
+            "",
+            "Trade Plan",
+            f"Entry:            {entry_val}",
+            f"Stop:             {stop_val}",
+            f"Target:           {target_val}",
+            f"Risk Reward:      {rr_str}",
+        ])
+
+    # ── LAYER 3: Detailed Market Data ─────────────────────────────────────────
+    lines.extend([
+        "",
+        "Detailed Market Data",
+        f"── {sym}-USDT (OKX) ──",
         "",
         f"Price:           {_fmt_price(overview.get('price_usd'))}",
         f"24h Change:      {_fmt_change(overview.get('change_24h'))}",
@@ -692,7 +828,7 @@ def build_okx_context(symbol: str) -> str:
         f"EMA20:           {_fmt_price(overview.get('ema20'))}",
         f"EMA50:           {_fmt_price(overview.get('ema50'))}",
         f"Trend:           {overview.get('trend') if overview.get('trend') else 'n/a'}",
-    ]
+    ])
 
     bid = overview.get("bid_price")
     ask = overview.get("ask_price")
@@ -710,5 +846,39 @@ def build_okx_context(symbol: str) -> str:
     oi = overview.get("open_interest_usd")
     if oi is not None:
         lines.append(f"Open Interest:   {_fmt_big(oi)}")
+
+    # Append trade decision detail block if available
+    if decision is not None:
+        stars = _stars(decision.trade_quality)
+        agg_entry = _fmt_price(decision.aggressive_entry)
+
+        if decision.recommended_action == "BUY":
+            cons_entry = f"Above {_fmt_price(decision.conservative_entry)}"
+        elif decision.recommended_action == "SELL":
+            cons_entry = f"Below {_fmt_price(decision.conservative_entry)}"
+        else:
+            cons_entry = _fmt_price(decision.conservative_entry)
+
+        sl   = _fmt_price(decision.stop_loss)
+        tp1  = _fmt_price(decision.take_profit_1)
+        tp2  = _fmt_price(decision.take_profit_2)
+        rr_d = f"{decision.risk_reward:.2f} : 1" if decision.risk_reward is not None else "n/a"
+
+        lines.extend([
+            "",
+            "Trade Decision",
+            f"Bias:             {decision.market_bias}",
+            f"Action:           {decision.recommended_action}",
+            f"Confidence:       {decision.confidence}%",
+            f"Trade Quality:    {stars}",
+            f"Aggressive Entry: {agg_entry}",
+            f"Conservative:     {cons_entry}",
+            f"Stop Loss:        {sl}",
+            f"Target 1:         {tp1}",
+            f"Target 2:         {tp2}",
+            f"Risk Reward:      {rr_d}",
+            "Reason:",
+            decision.reason,
+        ])
 
     return "\n".join(lines)

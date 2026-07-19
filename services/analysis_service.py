@@ -1,9 +1,33 @@
-from services.okx_service import build_market_context, KNOWN_SYMBOLS
+"""Analysis service - Phase 7.5 Architecture.
+
+AI is completely optional. The Tactical Engine ALWAYS runs first,
+generating a complete structured report. The Local Narrator ALWAYS
+produces a complete text report. AI only enhances wording if available.
+
+Users NEVER see "AI service unavailable" - they always receive a
+complete analysis report.
+"""
+
+from services.okx_service import get_market_overview, KNOWN_SYMBOLS
 from services.telegram_service import send_message
-from services.hermes_service import ask_hermes
+from services.hermes_service import generate_analysis_with_optional_ai
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def handle_analysis_command(chat_id: str, text: str):
+    """Handle /analysis command with Phase 7.5 architecture.
+    
+    Architecture:
+        1. Get market data
+        2. Run Tactical Engine (ALWAYS)
+        3. Generate Local Narrative (ALWAYS)
+        4. Optionally try AI enhancement
+        5. Return complete report
+    
+    User NEVER sees "AI service unavailable".
+    """
     parts = text.strip().split()
     if len(parts) < 2:
         send_message(
@@ -19,21 +43,21 @@ def handle_analysis_command(chat_id: str, text: str):
     if symbol not in KNOWN_SYMBOLS:
         send_message(chat_id, f"Unknown symbol: {symbol}. I don't have market data for it.")
         return
+    
+    # Send thinking message
+    send_message(chat_id, "Analyzing...")
 
-    market_block = build_market_context([symbol])
-
-    if not market_block:
-        send_message(chat_id, f"No market data available for {symbol} right now. Try again shortly.")
-        return
-
-    user_question = " ".join(parts[2:]) if len(parts) > 2 else f"Analyze {symbol} for me."
-
-    prompt = (
-        f"{market_block}\n\n"
-        f"---\n\n"
-        f"User request: {user_question}\n\n"
-        f"Provide a clear, actionable analysis. Include technical and fundamental context where relevant."
-    )
-
-    response = ask_hermes(prompt)
-    send_message(chat_id, response)
+    try:
+        # Use new architecture - AI is optional
+        response = generate_analysis_with_optional_ai(symbol)
+        send_message(chat_id, response)
+        
+    except Exception as e:
+        logger.error(f"Analysis command failed for {symbol}: {e}")
+        
+        # Last resort - should rarely reach here
+        send_message(
+            chat_id,
+            f"I encountered a temporary issue analyzing {symbol}. "
+            f"Please try again or use: /intelligence {symbol}"
+        )
