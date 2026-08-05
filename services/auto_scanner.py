@@ -157,12 +157,14 @@ def scan_once(
     """Run one scan cycle and return generated alerts (list of alert dicts).
 
     This function is synchronous and performs per-symbol scans with a small
-    delay to respect rate limits.
+    delay to respect rate limits. It also logs per-asset results and a
+    ranked leaderboard at the end of the cycle.
     """
     if watchlist is None:
         watchlist = WATCHLIST
 
     alerts: List[Dict] = []
+    scanned_items: List[Dict] = []  # capture every scanned asset for leaderboard
 
     # Import here to avoid top-level heavy imports
     from services.analysis_pipeline import analyze as run_analysis_pipeline
@@ -207,18 +209,30 @@ def scan_once(
             except Exception:
                 confidence_int = 0
 
-            if score_int >= min_score:
-                # Gather support/resistance from analysis object when available
+            # Per-asset visibility logging
+            reco_display = recommendation or (getattr(analysis_obj.decision, "recommended_action", None) if hasattr(analysis_obj, "decision") else "WAIT")
+            logger.info("%s | Score: %s | Confidence: %s | Recommendation: %s", symbol, score_int, confidence_int, reco_display)
+
+            # Save scanned item for end-of-cycle reporting
+            try:
+                support = getattr(analysis_obj.market_structure, "nearest_support", None)
+                resistance = getattr(analysis_obj.market_structure, "nearest_resistance", None)
+            except Exception:
                 support = None
                 resistance = None
-                try:
-                    support = getattr(analysis_obj.market_structure, "nearest_support", None)
-                    resistance = getattr(analysis_obj.market_structure, "nearest_resistance", None)
-                except Exception:
-                    # ignore missing attributes
-                    pass
 
-                reco = recommendation or (getattr(analysis_obj.decision, "recommended_action", None) if hasattr(analysis_obj, "decision") else "")
+            scanned_items.append({
+                "symbol": symbol,
+                "score": score_int,
+                "confidence": confidence_int,
+                "recommendation": reco_display,
+                "support": support,
+                "resistance": resistance,
+            })
+
+            # Existing alert logic (unchanged)
+            if score_int >= min_score:
+                reco = reco_display
 
                 if _should_alert(symbol, score_int, reco):
                     alert = {
@@ -243,6 +257,40 @@ def scan_once(
             # allow stop early
             if _stop_event.wait(symbol_delay):
                 break
+
+    # End-of-cycle leaderboard and summary
+    try:
+        logger.info("===== MARKET SCAN =====")
+        total_scanned = len(scanned_items)
+        logger.info("Scanned: %s assets", total_scanned)
+
+        high_count = sum(1 for s in scanned_items if s.get("score", 0) > ALERT_SCORE_THRESHOLD)
+        medium_count = sum(1 for s in scanned_items if 60 <= s.get("score", 0) <= ALERT_SCORE_THRESHOLD)
+        low_count = sum(1 for s in scanned_items if s.get("score", 0) < 60)
+
+        logger.info("High Quality (>80): %s", high_count)
+        logger.info("Medium (60–80): %s", medium_count)
+        logger.info("Low (<60): %s", low_count)
+
+        # Top 10 ranked opportunities
+        ranked = sorted(scanned_items, key=lambda x: x.get("score", 0), reverse=True)
+        top_n = ranked[:10]
+        if top_n:
+            for idx, item in enumerate(top_n, start=1):
+                logger.info("#%s %s %s", idx, item.get("symbol"), item.get("score"))
+        else:
+            logger.info("No assets scanned this cycle.")
+
+        # If no asset exceeds alert threshold, print special message
+        if high_count == 0:
+            if ranked:
+                best = ranked[0]
+                logger.info("No qualifying opportunities this cycle.")
+                logger.info("Highest score: %s (%s)", best.get("symbol"), best.get("score"))
+            else:
+                logger.info("No qualifying opportunities this cycle. No data available.")
+    except Exception as e:
+        logger.warning("Error while producing scan summary: %s", e)
 
     return alerts
 
