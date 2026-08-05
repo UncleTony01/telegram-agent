@@ -109,6 +109,9 @@ class TacticalReport:
         self.reasoning: str = ""
         self.bullish_factors: List[str] = []
         self.bearish_factors: List[str] = []
+        
+        # Opportunity Scanner Result (Phase 5.5)
+        self.opportunity_result: Optional[Any] = None
 
 
 # ============================================================================
@@ -209,6 +212,19 @@ def _populate_from_analysis_object(report: TacticalReport, analysis) -> None:
     
     # Warnings
     report.warnings = analysis.narrative.warnings if analysis.narrative.warnings else []
+    
+    # Opportunity Scanner Result (Phase 5.5)
+    opp_result = getattr(analysis, '_opportunity_result', None)
+    if opp_result is None:
+        try:
+            from services.opportunity_scanner import calculate_opportunity_score
+            opp_result = calculate_opportunity_score(analysis)
+            setattr(analysis, '_opportunity_result', opp_result)
+        except Exception:
+            opp_result = None
+    if opp_result:
+        report.opportunity_result = opp_result
+        report.opportunity_score = opp_result.score
 
 
 def _populate_from_dict(report: TacticalReport, overview: dict) -> None:
@@ -278,6 +294,19 @@ def _populate_from_dict(report: TacticalReport, overview: dict) -> None:
         report.sideways_probability = prob.sideways_probability
         report.most_likely = prob.most_likely
         report.confidence = prob.confidence
+    
+    # Opportunity Scanner Result (Phase 5.5)
+    opp_result = overview.get("_opportunity_result")
+    if opp_result is None:
+        try:
+            from services.opportunity_scanner import calculate_opportunity_score
+            opp_result = calculate_opportunity_score(overview)
+            overview["_opportunity_result"] = opp_result
+        except Exception:
+            opp_result = None
+    if opp_result:
+        report.opportunity_result = opp_result
+        report.opportunity_score = opp_result.score
 
 
 def _generate_scenarios(report: TacticalReport) -> None:
@@ -402,6 +431,10 @@ def narrate_tactical_report(report: TacticalReport, analysis=None) -> str:
     # Educational Insight (XDE Phase 8 - Teaching users)
     if explainable and 'educational_insight' in explainable:
         lines.extend(_narrate_educational_insight_xde(explainable['educational_insight']))
+    
+    # Opportunity Scanner Section (Phase 5.5)
+    if report.opportunity_result:
+        lines.extend(_narrate_opportunity_scanner(report.opportunity_result))
     
     # Footer
     lines.extend([
@@ -702,16 +735,19 @@ def _narrate_scenarios(report: TacticalReport) -> List[str]:
 
 def _narrate_trading_plan(report: TacticalReport) -> List[str]:
     """Narrate trading plan section."""
+    # Get enhanced recommendation based on opportunity score
+    enhanced_rec = _get_enhanced_recommendation(report)
+    
     lines = [
         "💡 TRADING PLAN",
         "",
-        f"Action:           {report.recommendation}",
+        f"Action:           {enhanced_rec}",
         "",
     ]
     
-    if "BUY" in report.recommendation.upper():
+    if "BUY" in enhanced_rec.upper() or "LONG" in enhanced_rec.upper():
         lines.extend(_narrate_long_plan(report))
-    elif "SELL" in report.recommendation.upper():
+    elif "SELL" in enhanced_rec.upper() or "SHORT" in enhanced_rec.upper():
         lines.extend(_narrate_short_plan(report))
     else:
         lines.append("Strategy:         Wait for clearer setup")
@@ -828,6 +864,88 @@ def _format_volume(volume: float) -> str:
         return f"${volume / 1_000:.2f}K"
     else:
         return f"${volume:,.0f}"
+
+
+# ============================================================================
+# Opportunity Scanner Narration (Phase 5.5)
+# ============================================================================
+
+def _narrate_opportunity_scanner(opp_result) -> List[str]:
+    """Narrate opportunity scanner result.
+    
+    Phase 5.5 - Displays the Opportunity Scanner output with
+    score, classification, priority, and reasons.
+    
+    Parameters
+    ----------
+    opp_result : OpportunityResult
+        Result from opportunity_scanner.calculate_opportunity_score()
+    
+    Returns
+    -------
+    List[str]
+        Formatted lines for the report
+    """
+    lines = [
+        "",
+        "🎯 OPPORTUNITY",
+        "",
+        "Score:",
+        f"{opp_result.score} / 100",
+        "",
+        "Classification:",
+        f"{opp_result.classification}",
+        "",
+        "Priority:",
+        f"{opp_result.priority}",
+        "",
+        "Confidence:",
+        f"{opp_result.confidence}%",
+        "",
+        "Reasons",
+    ]
+    
+    if opp_result.reasons:
+        for reason in opp_result.reasons[:10]:  # Limit to 10 reasons
+            clean_reason = reason.lstrip("✓•- ").strip()
+            lines.append(f"✓ {clean_reason}")
+    else:
+        lines.append("✓ Standard market conditions")
+    lines.append("")
+    
+    # Quality indicator based on score (Requirements 3)
+    if opp_result.score > 80:
+        lines.append("🔥 HIGH QUALITY SETUP")
+        lines.append("")
+    elif opp_result.score < 40:
+        lines.append("⚠ Low-quality setup.")
+        lines.append("Waiting is preferred.")
+        lines.append("")
+    
+    return lines
+
+
+def _get_enhanced_recommendation(report: TacticalReport) -> str:
+    """Get enhanced recommendation based on opportunity score.
+    
+    Phase 5.5 - Uses Opportunity Score as a decision layer.
+    
+    Requirement 5:
+    if score > 80 -> WATCH FOR ENTRY
+    if score < 40 -> NO TRADE
+    otherwise     -> WAIT
+    """
+    if not report.opportunity_result:
+        return report.recommendation
+    
+    opp_score = report.opportunity_result.score
+    
+    if opp_score > 80:
+        return "WATCH FOR ENTRY"
+    elif opp_score < 40:
+        return "NO TRADE"
+    else:
+        return "WAIT"
 
 
 # ============================================================================

@@ -463,15 +463,22 @@ def _decision_engine(analysis: 'AnalysisObject') -> 'AnalysisObject':
         else:
             analysis.decision.risk_level = "LOW"
         
-        # Opportunity score
+        # Opportunity score (Phase 5.5)
         try:
-            from services.market_intelligence import calculate_opportunity_score
+            from services.opportunity_scanner import calculate_opportunity_score
             
-            opp_score = calculate_opportunity_score(
-                overview,
-                analysis.market_structure.market_state
-            )
-            analysis.decision.opportunity_score = opp_score
+            opp_result = calculate_opportunity_score(analysis)
+            analysis.decision.opportunity_score = opp_result.score
+            setattr(analysis, '_opportunity_result', opp_result)
+            
+            if opp_result.score > 80:
+                analysis.decision.recommended_action = "WATCH FOR ENTRY"
+            elif opp_result.score < 40:
+                analysis.decision.recommended_action = "NO TRADE"
+            else:
+                analysis.decision.recommended_action = "WAIT"
+            
+            analysis.decision.signal = "BUY" if "BUY" in analysis.decision.recommended_action or "ENTRY" in analysis.decision.recommended_action else "SELL" if "SELL" in analysis.decision.recommended_action else "WAIT" if "WAIT" in analysis.decision.recommended_action else "NO TRADE"
             
         except Exception as e:
             logger.debug(f"Opportunity score calculation failed: {e}")

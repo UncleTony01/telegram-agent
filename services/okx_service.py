@@ -541,6 +541,35 @@ def get_market_indicators(symbol: str) -> Dict[str, Any]:
     except OKXError as exc:
         logger.warning("get_market_indicators EMA50 failed: %s", exc)
 
+    # Try to fetch MACD (histogram + lines) when available
+    try:
+        macd_payload = _run_okx(
+            [
+                "market",
+                "indicator",
+                "macd",
+                inst,
+                "--bar",
+                "1Dutc",
+                "--limit",
+                "1",
+            ]
+        )
+        # Extract numeric values; the extractor returns the latest numeric value found
+        macd_hist = _extract_indicator_value(macd_payload, "MACD")
+        if macd_hist is not None:
+            indicators["macd_histogram"] = macd_hist
+        # Try to extract MACD signal/line if present under other indicator keys
+        macd_signal = _extract_indicator_value(macd_payload, "MACD_SIGNAL")
+        macd_line = _extract_indicator_value(macd_payload, "MACD_LINE")
+        if macd_signal is not None:
+            indicators["macd_signal"] = macd_signal
+        if macd_line is not None:
+            indicators["macd_line"] = macd_line
+    except OKXError as exc:
+        # MACD is optional; warn but don't fail
+        logger.debug("get_market_indicators MACD failed or not available: %s", exc)
+
     price = None
     try:
         ticker = get_ticker(symbol)
@@ -615,6 +644,27 @@ def get_market_overview(symbol: str) -> Dict[str, Any]:
     try:
         oi = get_open_interest(symbol)
         overview["open_interest_usd"] = oi.get("oi_usd")
+        # Attempt to extract a 24h OI change field from the raw response if present
+        raw = oi.get("raw") if isinstance(oi, dict) else None
+        oi_change_24h = None
+        if isinstance(raw, dict):
+            # Heuristic: look for keys that mention 'change' or '24' in their name
+            for k, v in raw.items():
+                if not isinstance(k, str):
+                    continue
+                lk = k.lower()
+                if "change" in lk or "chg" in lk or "24" in lk:
+                    try:
+                        candidate = _float(v)
+                        if candidate is not None:
+                            oi_change_24h = candidate
+                            break
+                    except Exception:
+                        continue
+        # If found, expose under a canonical key
+        if oi_change_24h is not None:
+            overview["oi_change"] = oi_change_24h
+            overview["oi_change_24h"] = oi_change_24h
     except OKXError as exc:
         logger.warning("get_market_overview OI failed: %s", exc)
 

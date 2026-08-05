@@ -33,101 +33,67 @@ def analyze_market_tactically(overview) -> Dict[str, Any]:
         Complete tactical analysis including bias, confidence, scenarios,
         support/resistance, recommendation, and risk assessment
     """
-    
+    from services.opportunity_scanner import calculate_opportunity_score
+
+    # Extract or calculate Opportunity Result (Phase 5.5)
+    opp_result = None
+    if hasattr(overview, '_opportunity_result') and overview._opportunity_result:
+        opp_result = overview._opportunity_result
+    elif isinstance(overview, dict) and '_opportunity_result' in overview:
+        opp_result = overview['_opportunity_result']
+    else:
+        try:
+            opp_result = calculate_opportunity_score(overview)
+            if hasattr(overview, '__dict__'):
+                overview._opportunity_result = opp_result
+            elif isinstance(overview, dict):
+                overview['_opportunity_result'] = opp_result
+        except Exception:
+            opp_result = None
+
     # Support both dict and AnalysisObject inputs
     if hasattr(overview, 'market_data'):
         # AnalysisObject input
-        return _analyze_from_analysis_object(overview)
+        return _analyze_from_analysis_object(overview, opp_result=opp_result)
     else:
         # Legacy dict input (backward compatible)
-        return _analyze_from_dict(overview)
+        return _analyze_from_dict(overview, opp_result=opp_result)
 
 
-def _analyze_from_analysis_object(analysis) -> Dict[str, Any]:
-    """Analyze from AnalysisObject (new architecture)."""
-    # Extract values from analysis object
-    symbol = analysis.symbol
-    price = analysis.market_data.price
-    ema20 = analysis.indicators.ema20
-    ema50 = analysis.indicators.ema50
-    rsi = analysis.indicators.rsi
-    high24 = analysis.market_data.high_24h
-    low24 = analysis.market_data.low_24h
-    funding = analysis.derivatives.funding_rate
-    volume = analysis.market_data.volume_24h
-    oi = analysis.derivatives.open_interest_usd
-    
-    market_structure = analysis.market_structure.trend.lower() if analysis.market_structure.trend else ""
-    trend_analysis = {"trend": analysis.market_structure.trend, "bias": analysis.decision.bias}
-    
-    # Use decision and confluence from analysis object if available
-    probability = None
-    trade_decision = None
-    
-    return _perform_analysis(
-        symbol, price, ema20, ema50, rsi, high24, low24, 
-        funding, volume, oi, market_structure, trend_analysis,
-        probability, trade_decision
-    )
-
-
-def _analyze_from_dict(overview: dict) -> Dict[str, Any]:
-    """Generate complete tactical analysis using local indicators only.
-    
-    Parameters
-    ----------
-    overview : dict
-        Market overview from okx_service.get_market_overview()
-    
-    Returns
-    -------
-    dict
-        Complete tactical analysis including bias, confidence, scenarios,
-        support/resistance, recommendation, and risk assessment
-    """
-    
-    def _float(val: Any) -> Optional[float]:
-        if val is None:
-            return None
-        try:
-            return float(val)
-        except (ValueError, TypeError):
-            return None
-    
-    # Extract core indicators
-    symbol = overview.get("symbol", "UNKNOWN")
-    price = _float(overview.get("price_usd"))
-    ema20 = _float(overview.get("ema20"))
-    ema50 = _float(overview.get("ema50"))
-    rsi = _float(overview.get("rsi"))
-    high24 = _float(overview.get("high_24h_usd"))
-    low24 = _float(overview.get("low_24h_usd"))
-    funding = _float(overview.get("funding_rate"))
-    volume = _float(overview.get("volume_usd"))
-    oi = _float(overview.get("open_interest_usd"))
-    
-    # Get advanced analysis if available
-    probability = overview.get("probability")
-    trade_decision = overview.get("trade_decision")
-    market_structure = str(overview.get("market_structure", "")).lower()
-    trend_analysis = overview.get("trend_analysis", {})
-    
-    # Determine overall bias
+def _perform_analysis(
+    symbol: str,
+    price: Optional[float],
+    ema20: Optional[float],
+    ema50: Optional[float],
+    rsi: Optional[float],
+    high24: Optional[float],
+    low24: Optional[float],
+    funding: Optional[float],
+    volume: Optional[float],
+    oi: Optional[float],
+    market_structure: str,
+    trend_analysis: dict,
+    probability: Any = None,
+    trade_decision: Any = None,
+    opp_result: Any = None,
+) -> Dict[str, Any]:
+    """Internal helper to perform analysis and construct dictionary."""
     bias = determine_bias(price, ema20, ema50, rsi, market_structure, trend_analysis)
-    
-    # Calculate confidence
     confidence = calculate_confidence(price, ema20, ema50, rsi, funding, probability)
-    
-    # Generate scenarios
     scenarios = generate_scenarios(bias, confidence, price, ema20, ema50, high24, low24, rsi)
-    
-    # Identify key levels
     support, resistance = identify_key_levels(price, ema20, ema50, low24, high24)
     
-    # Generate recommendation
-    recommendation = generate_recommendation(bias, confidence, price, resistance, support, rsi)
-    
-    # Assess risk
+    # Recommendation logic considering Opportunity Score (Requirement 5)
+    if opp_result is not None:
+        if opp_result.score > 80:
+            recommendation = "WATCH FOR ENTRY"
+        elif opp_result.score < 40:
+            recommendation = "NO TRADE"
+        else:
+            recommendation = "WAIT"
+    else:
+        recommendation = generate_recommendation(bias, confidence, price, resistance, support, rsi)
+        
     risk_assessment = assess_risk(funding, rsi, volume, oi, confidence, price, high24)
     
     return {
@@ -144,7 +110,68 @@ def _analyze_from_dict(overview: dict) -> Dict[str, Any]:
         "ema50": ema50,
         "rsi": rsi,
         "funding": funding,
+        "opportunity_result": opp_result,
+        "opportunity_score": opp_result.score if opp_result else None,
     }
+
+
+def _analyze_from_analysis_object(analysis, opp_result: Any = None) -> Dict[str, Any]:
+    """Analyze from AnalysisObject (new architecture)."""
+    symbol = analysis.symbol
+    price = analysis.market_data.price
+    ema20 = analysis.indicators.ema20
+    ema50 = analysis.indicators.ema50
+    rsi = analysis.indicators.rsi
+    high24 = analysis.market_data.high_24h
+    low24 = analysis.market_data.low_24h
+    funding = analysis.derivatives.funding_rate
+    volume = analysis.market_data.volume_24h
+    oi = analysis.derivatives.open_interest_usd
+    
+    market_structure = analysis.market_structure.trend.lower() if analysis.market_structure.trend else ""
+    trend_analysis = {"trend": analysis.market_structure.trend, "bias": analysis.decision.bias}
+    
+    probability = None
+    trade_decision = None
+    
+    return _perform_analysis(
+        symbol, price, ema20, ema50, rsi, high24, low24, 
+        funding, volume, oi, market_structure, trend_analysis,
+        probability, trade_decision, opp_result
+    )
+
+
+def _analyze_from_dict(overview: dict, opp_result: Any = None) -> Dict[str, Any]:
+    """Generate complete tactical analysis using local indicators only."""
+    def _float(val: Any) -> Optional[float]:
+        if val is None:
+            return None
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            return None
+    
+    symbol = overview.get("symbol", "UNKNOWN")
+    price = _float(overview.get("price_usd"))
+    ema20 = _float(overview.get("ema20"))
+    ema50 = _float(overview.get("ema50"))
+    rsi = _float(overview.get("rsi"))
+    high24 = _float(overview.get("high_24h_usd"))
+    low24 = _float(overview.get("low_24h_usd"))
+    funding = _float(overview.get("funding_rate"))
+    volume = _float(overview.get("volume_usd"))
+    oi = _float(overview.get("open_interest_usd"))
+    
+    probability = overview.get("probability")
+    trade_decision = overview.get("trade_decision")
+    market_structure = str(overview.get("market_structure", "")).lower()
+    trend_analysis = overview.get("trend_analysis", {})
+    
+    return _perform_analysis(
+        symbol, price, ema20, ema50, rsi, high24, low24, 
+        funding, volume, oi, market_structure, trend_analysis,
+        probability, trade_decision, opp_result
+    )
 
 
 def determine_bias(
@@ -543,6 +570,39 @@ def build_tactical_narrative(tactical_analysis: Dict[str, Any]) -> str:
     lines.append("")
     lines.append(f"{risk_assessment}")
     lines.append("")
+
+    # Opportunity Scanner (Phase 5.5)
+    opp_result = tactical_analysis.get("opportunity_result")
+    if opp_result:
+        lines.append("🎯 OPPORTUNITY")
+        lines.append("")
+        lines.append("Score:")
+        lines.append(f"{opp_result.score} / 100")
+        lines.append("")
+        lines.append("Classification:")
+        lines.append(f"{opp_result.classification}")
+        lines.append("")
+        lines.append("Priority:")
+        lines.append(f"{opp_result.priority}")
+        lines.append("")
+        lines.append("Confidence:")
+        lines.append(f"{opp_result.confidence}%")
+        lines.append("")
+        lines.append("Reasons")
+        if opp_result.reasons:
+            for reason in opp_result.reasons[:10]:
+                clean_reason = reason.lstrip("✓•- ").strip()
+                lines.append(f"✓ {clean_reason}")
+        else:
+            lines.append("✓ Standard market conditions")
+        lines.append("")
+        if opp_result.score > 80:
+            lines.append("🔥 HIGH QUALITY SETUP")
+            lines.append("")
+        elif opp_result.score < 40:
+            lines.append("⚠ Low-quality setup.")
+            lines.append("Waiting is preferred.")
+            lines.append("")
     
     # Footer
     lines.extend([

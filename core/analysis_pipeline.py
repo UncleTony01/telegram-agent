@@ -287,6 +287,32 @@ def _market_structure_engine(analysis: 'AnalysisObject') -> 'AnalysisObject':
                 analysis.market_structure.nearest_resistance = min(resistances)
                 analysis.market_structure.resistance_levels = sorted(resistances)
         
+        # Attempt to derive swing highs/lows and Break of Structure using recent candles
+        try:
+            from services.okx_service import get_candles
+            # Use a 1D bar and 30 bars window for swing detection
+            candles = get_candles(analysis.symbol, bar="1D", limit=30)
+            highs = [c.get('h') for c in candles if isinstance(c, dict) and c.get('h') is not None]
+            lows = [c.get('l') for c in candles if isinstance(c, dict) and c.get('l') is not None]
+            if highs:
+                analysis.market_structure.swing_high = max(highs)
+            if lows:
+                analysis.market_structure.swing_low = min(lows)
+            # Range position: where current price sits between swing_low and swing_high
+            if analysis.market_data.price is not None and analysis.market_structure.swing_high is not None and analysis.market_structure.swing_low is not None and analysis.market_structure.swing_high != analysis.market_structure.swing_low:
+                rp = (analysis.market_data.price - analysis.market_structure.swing_low) / (analysis.market_structure.swing_high - analysis.market_structure.swing_low)
+                analysis.market_structure.range_position = max(0.0, min(1.0, rp))
+            # Break of Structure: if price breaks above recent swing_high or below swing_low
+            if analysis.market_data.price is not None and analysis.market_structure.swing_high is not None:
+                if analysis.market_data.price > analysis.market_structure.swing_high:
+                    analysis.market_structure.break_of_structure = 'Bullish BOS'
+                    analysis.market_structure.bos_level = analysis.market_structure.swing_high
+                elif analysis.market_data.price < (analysis.market_structure.swing_low or 0):
+                    analysis.market_structure.break_of_structure = 'Bearish BOS'
+                    analysis.market_structure.bos_level = analysis.market_structure.swing_low
+        except Exception as e:
+            logger.debug(f"Swing/BOS derivation failed: {e}")
+        
         # Market state from market intelligence engine
         try:
             from services.market_intelligence import determine_market_state
@@ -389,7 +415,7 @@ def _decision_engine(analysis: 'AnalysisObject') -> 'AnalysisObject':
     """
     try:
         from services.trade_decision import generate_trade_decision
-        
+            
         # Build overview dict for trade decision engine
         overview = {
             "symbol": analysis.symbol,
@@ -407,14 +433,16 @@ def _decision_engine(analysis: 'AnalysisObject') -> 'AnalysisObject':
                 "bearish": analysis.confluence.bearish_score,
             },
         }
-        
+            
         decision = generate_trade_decision(overview)
-        
+            
         # Populate decision section
         analysis.decision.signal = "BUY" if "BUY" in decision.recommended_action else "SELL" if "SELL" in decision.recommended_action else "WAIT"
         analysis.decision.bias = decision.market_bias
         analysis.decision.recommended_action = decision.recommended_action
-        analysis.decision.conviction_score = decision.confidence
+        # Conviction: prefer decision.confidence, else confluence confidence, else probability confidence
+        conv = decision.confidence if getattr(decision, 'confidence', None) is not None else analysis.confluence.confidence
+        analysis.decision.conviction_score = conv
         analysis.decision.trade_quality = decision.trade_quality
         analysis.decision.aggressive_entry = decision.aggressive_entry
         analysis.decision.conservative_entry = decision.conservative_entry
@@ -423,11 +451,11 @@ def _decision_engine(analysis: 'AnalysisObject') -> 'AnalysisObject':
         analysis.decision.take_profit_2 = decision.take_profit_2
         analysis.decision.risk_reward_ratio = decision.risk_reward
         analysis.decision.reasoning = decision.reason
-        
+            
         # Calculate edge
         try:
             from services.market_intelligence import calculate_edge
-            
+                
             edge_data = calculate_edge(
                 {"price_usd": analysis.market_data.price,
                  "ema20": analysis.indicators.ema20,
@@ -438,15 +466,17 @@ def _decision_engine(analysis: 'AnalysisObject') -> 'AnalysisObject':
                  "trade_decision": decision},
                 analysis.market_structure.market_state
             )
-            
+                
             analysis.decision.expected_gain = edge_data[0]
             analysis.decision.expected_loss = edge_data[1]
-            analysis.decision.risk_reward_ratio = edge_data[2]
+            # Edge-derived risk reward is authoritative when available
+            if edge_data[2] is not None:
+                analysis.decision.risk_reward_ratio = edge_data[2]
             analysis.decision.expected_edge = edge_data[3]
-            
+                
         except Exception as e:
             logger.debug(f"Edge calculation failed: {e}")
-        
+            
         # Assess risk
         analysis.decision.risk_factors = []
         if analysis.derivatives.funding_rate and analysis.derivatives.funding_rate >= 0.0003:
@@ -455,26 +485,37 @@ def _decision_engine(analysis: 'AnalysisObject') -> 'AnalysisObject':
             analysis.decision.risk_factors.append("RSI extreme")
         if analysis.confluence.confidence < 50:
             analysis.decision.risk_factors.append("Low confidence")
-        
+            
         if len(analysis.decision.risk_factors) >= 2:
             analysis.decision.risk_level = "HIGH"
         elif len(analysis.decision.risk_factors) == 1:
             analysis.decision.risk_level = "MODERATE"
         else:
             analysis.decision.risk_level = "LOW"
-        
-        # Opportunity score
-        try:
-            from services.market_intelligence import calculate_opportunity_score
             
-            opp_score = calculate_opportunity_score(
+        # Opportunity score (legacy integer) - keep for backward compatibility
+        try:
+            from services.market_intelligence import calculate_opportunity_score as mi_calc
+            from services.opportunity_scanner import calculate_opportunity_score as opp_calc
+                
+            # Legacy integer score
+            opp_score = mi_calc(
                 overview,
                 analysis.market_structure.market_state
             )
             analysis.decision.opportunity_score = opp_score
-            
         except Exception as e:
             logger.debug(f"Opportunity score calculation failed: {e}")
+            
+        # Attach full OpportunityResult object (non-invasive addition)
+        try:
+            opp_result = opp_calc(analysis)
+            # store as dynamic attribute to preserve AnalysisObject schema
+            setattr(analysis, '_opportunity_result', opp_result)
+            # also keep backward-compatible integer if other code expects it
+            analysis.decision.opportunity_score = getattr(opp_result, 'score', analysis.decision.opportunity_score)
+        except Exception as e:
+            logger.debug(f"OpportunityResult attachment failed: {e}")
         
     except Exception as e:
         logger.warning(f"Decision engine failed: {e}")

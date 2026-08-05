@@ -88,11 +88,15 @@ def generate_analysis_with_optional_ai(symbol: str, analysis_object=None) -> str
     PHASE 7.5 ARCHITECTURE:
     This function implements the correct flow where AI is completely optional.
     
+    PHASE 5.5 INTEGRATION:
+    Opportunity Scanner runs BEFORE Local Narrator to enrich the analysis.
+    
     Flow:
         1. Build/get AnalysisObject
-        2. Generate Local Narrator report (ALWAYS succeeds)
-        3. Optionally try AI enhancement
-        4. Return complete report
+        2. Run Opportunity Scanner → enrich analysis
+        3. Generate Local Narrator report (ALWAYS succeeds)
+        4. Optionally try AI enhancement
+        5. Return complete report
     
     User NEVER sees "AI service unavailable" - they always get a complete report.
     
@@ -110,6 +114,7 @@ def generate_analysis_with_optional_ai(symbol: str, analysis_object=None) -> str
     """
     from services.okx_service import get_market_overview
     from services.local_narrator import generate_local_narrative
+    from services.opportunity_scanner import calculate_opportunity_score
     
     logger.info(f"Generating analysis for {symbol} with optional AI enhancement")
     
@@ -121,7 +126,23 @@ def generate_analysis_with_optional_ai(symbol: str, analysis_object=None) -> str
             logger.error(f"Failed to get market data for {symbol}: {e}")
             return _generate_error_report(symbol, str(e))
     
-    # Step 2: ALWAYS generate Local Narrator report
+    # Step 2: Run Opportunity Scanner (Phase 5.5)
+    # This enriches the analysis with opportunity scoring
+    try:
+        opportunity_result = calculate_opportunity_score(analysis_object)
+        logger.info(f"Opportunity scan complete for {symbol}: {opportunity_result.score}/100 - {opportunity_result.classification}")
+        
+        # Attach opportunity result to analysis object for narrator
+        if hasattr(analysis_object, '__dict__'):
+            analysis_object._opportunity_result = opportunity_result
+        elif isinstance(analysis_object, dict):
+            analysis_object['_opportunity_result'] = opportunity_result
+            
+    except Exception as e:
+        logger.warning(f"Opportunity scanner failed for {symbol}: {e}")
+        # Continue without opportunity data
+    
+    # Step 3: ALWAYS generate Local Narrator report
     # This ensures we ALWAYS have a complete report
     try:
         local_report = generate_local_narrative(analysis_object)
@@ -130,7 +151,7 @@ def generate_analysis_with_optional_ai(symbol: str, analysis_object=None) -> str
         logger.error(f"Local narrator failed for {symbol}: {e}")
         return _generate_error_report(symbol, "Analysis generation failed")
     
-    # Step 3: Optionally try AI enhancement
+    # Step 4: Optionally try AI enhancement
     # AI is completely optional - if it fails, we still return the local report
     try:
         enhanced_report = _try_ai_enhancement(symbol, analysis_object, local_report)
@@ -141,7 +162,7 @@ def generate_analysis_with_optional_ai(symbol: str, analysis_object=None) -> str
         logger.warning(f"AI enhancement failed for {symbol}: {e}")
         # Continue with local report
     
-    # Step 4: Return local report
+    # Step 5: Return local report
     logger.info(f"Returning local narrative for {symbol}")
     return local_report
 
