@@ -8,7 +8,7 @@ Users NEVER see "AI service unavailable" - they always receive a
 complete analysis report.
 """
 
-from services.okx_service import get_market_overview, KNOWN_SYMBOLS
+from services.okx_service import KNOWN_SYMBOLS
 from services.telegram_service import send_message
 from services.hermes_service import generate_analysis_with_optional_ai
 from utils.logger import get_logger

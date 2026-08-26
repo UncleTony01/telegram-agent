@@ -132,14 +132,19 @@ def test_scan_markets_error_resilience(mock_tactical, mock_okx):
         return {"symbol": symbol}
 
     mock_okx.side_effect = _faulty_overview
-    mock_tactical.side_effect = lambda ov: {
-        "symbol": ov["symbol"],
-        "recommendation": "WAIT",
-        "opportunity_result": OpportunityResult(
-            symbol=ov["symbol"], score=80, classification="Watchlist Long",
-            priority="High", confidence=75
-        )
-    }
+    def _mock_tactical(ov):
+        sym = getattr(ov, "symbol", None) or (ov.get("symbol") if isinstance(ov, dict) else "UNKNOWN")
+        if sym == "BAD":
+            raise RuntimeError("Analysis failure for BAD coin")
+        return {
+            "symbol": sym,
+            "recommendation": "WAIT",
+            "opportunity_result": OpportunityResult(
+                symbol=sym, score=80, classification="Watchlist Long",
+                priority="High", confidence=75
+            )
+        }
+    mock_tactical.side_effect = _mock_tactical
 
     # "BAD" coin fails, but "BTC" and "SOL" should succeed
     results = scan_markets(symbols=["BTC", "BAD", "SOL"])
