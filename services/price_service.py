@@ -1,4 +1,4 @@
-from services.okx_service import get_ticker
+from services.okx_service import OKXError, get_ticker
 from services.telegram_service import send_message
 
 
@@ -9,7 +9,11 @@ def handle_price_command(chat_id: str, text: str):
         return
 
     symbol = parts[1].upper()
-    price_data = get_ticker(symbol)
+    try:
+        price_data = get_ticker(symbol)
+    except OKXError as exc:
+        send_message(chat_id, f"Could not fetch price for {symbol}: {exc}")
+        return
 
     if not price_data or price_data.get("price_usd") is None:
         send_message(chat_id, f"No price data available for {symbol}.")

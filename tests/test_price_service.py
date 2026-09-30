@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch
 
+from services.okx_service import OKXError
 from services.price_service import handle_price_command
 
 
@@ -34,6 +35,14 @@ class PriceServiceTests(unittest.TestCase):
         message = send_message_mock.call_args[0][1]
         self.assertIn("BTC price", message)
         self.assertIn("24h change", message)
+
+    @patch("services.price_service.send_message")
+    @patch("services.price_service.get_ticker")
+    def test_handle_price_command_okx_error(self, get_ticker_mock, send_message_mock):
+        get_ticker_mock.side_effect = OKXError("OKX CLI not found")
+        handle_price_command("123", "/price BTC")
+        send_message_mock.assert_called_once()
+        self.assertIn("Could not fetch price for BTC", send_message_mock.call_args[0][1])
 
 
 if __name__ == "__main__":

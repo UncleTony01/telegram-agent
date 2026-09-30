@@ -282,6 +282,12 @@ def calculate_market_probability(overview: dict) -> ProbabilityResult:
     gap = sorted_vals[0] - sorted_vals[1]
     confidence = min(100, gap + conf_bonus)
 
+    # Scale confidence by how much core market data was actually available,
+    # so missing inputs cannot produce a falsely certain result.
+    core_inputs = (price, ema20, ema50, rsi, funding)
+    available = sum(v is not None for v in core_inputs)
+    confidence = int(confidence * available / len(core_inputs))
+
     # ── recommended action ────────────────────────────────────────────────────
     #
     # Converts probabilities into a human decision.
