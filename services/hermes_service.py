@@ -293,6 +293,19 @@ Please try:
 If this persists, the market data feed may be temporarily unavailable."""
 
 
+def _failover_to_tactical(reason: str, prompt: str) -> str:
+    """Fall back to the Tactical Engine when Hermes fails.
+
+    If the prompt mentions a known symbol, returns a tactical analysis for it.
+    Otherwise re-raises so the caller can use its own conversational fallback.
+    """
+    symbol = _extract_symbol_from_prompt(prompt)
+    if symbol:
+        return _generate_tactical_for_symbol(symbol, reason)
+
+    raise AIBackendError(reason)
+
+
 def _extract_symbol_from_prompt(prompt: str) -> str:
     """Extract trading symbol from prompt text.
     
