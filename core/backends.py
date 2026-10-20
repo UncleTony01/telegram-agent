@@ -3,9 +3,13 @@ import time
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from config import HERMES_CMD
+import requests
+
+from config import HERMES_CMD, OPENROUTER_API_KEY, OPENROUTER_MODEL
 
 HERMES_TIMEOUT = 180
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_TIMEOUT = 60
 
 
 class AIBackendError(Exception):
@@ -119,7 +123,65 @@ class HermesCLIBackend(AIBackend):
             raise AIBackendError(f"Unexpected error: {e}") from e
 
 
+class OpenRouterBackend(AIBackend):
+    def generate(self, prompt, history=None):
+        """Generate response via the OpenRouter chat completions API.
+
+        Raises the same AI* errors as HermesCLIBackend so callers can fall back.
+        """
+        from core.prompts import build_prompt
+        from utils.logger import get_logger
+
+        logger = get_logger(__name__)
+        full_prompt = build_prompt(prompt, history)
+        start = time.perf_counter()
+
+        try:
+            response = requests.post(
+                OPENROUTER_URL,
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "X-Title": "Uncle Tony Telegram Bot",
+                },
+                json={
+                    "model": OPENROUTER_MODEL,
+                    "messages": [{"role": "user", "content": full_prompt}],
+                },
+                timeout=OPENROUTER_TIMEOUT,
+            )
+        except requests.Timeout as e:
+            logger.error(f"OpenRouter timeout after {OPENROUTER_TIMEOUT}s")
+            raise AITimeoutError(f"Timeout after {OPENROUTER_TIMEOUT}s") from e
+        except requests.RequestException as e:
+            logger.warning(f"OpenRouter connection error: {e}")
+            raise AIConnectionError(f"Connection failed: {e}") from e
+
+        logger.info(f"OpenRouter ({OPENROUTER_MODEL}) completed in {time.perf_counter() - start:.2f} seconds")
+
+        if response.status_code == 429:
+            logger.warning("OpenRouter rate limit detected")
+            raise AIRateLimitError("Rate limit exceeded")
+
+        if not response.ok:
+            logger.warning(f"OpenRouter returned {response.status_code}: {response.text[:200]}")
+            raise AIBackendError(f"OpenRouter returned {response.status_code}")
+
+        try:
+            output = response.json()["choices"][0]["message"]["content"].strip()
+        except (ValueError, KeyError, IndexError, TypeError, AttributeError) as e:
+            logger.warning(f"Unexpected OpenRouter response: {response.text[:200]}")
+            raise AIBackendError("Unexpected response format") from e
+
+        if not output:
+            logger.warning("OpenRouter returned no output")
+            raise AIBackendError("No output returned")
+
+        return output
+
+
 class HermesBackendFactory:
     @staticmethod
     def create():
+        if OPENROUTER_API_KEY:
+            return OpenRouterBackend()
         return HermesCLIBackend()

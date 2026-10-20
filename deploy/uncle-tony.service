@@ -1,0 +1,13 @@
+[Unit]
+Description=Uncle Tony Telegram bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=%h/telegram-agent
+ExecStart=%h/telegram-agent/.venv/bin/python -u bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
