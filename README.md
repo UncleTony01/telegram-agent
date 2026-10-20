@@ -4,9 +4,7 @@
 
 Ask Uncle Tony about a coin and he pulls live market data from OKX, runs it through his own rule-based analysis engine, and replies with a full report: trend, key price levels, risk, possible scenarios and a suggested trading plan. Ask him anything else and he answers through an AI model.
 
-<!-- Add a screenshot of a chat with the bot here:
-![Uncle Tony in Telegram](docs/screenshot.png)
--->
+<p align="center"><img src="docs/screenshot.png" alt="Uncle Tony in Telegram" width="420"></p>
 
 > ⚠️ **Not financial advice.** This is a learning and showcase project. Do your own research before trading.
 
