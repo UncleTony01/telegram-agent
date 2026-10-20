@@ -5,7 +5,7 @@ from typing import Optional
 
 import requests
 
-from config import HERMES_CMD, OPENROUTER_API_KEY, OPENROUTER_MODEL
+from config import HERMES_CMD, OPENROUTER_API_KEY, OPENROUTER_MODELS
 
 HERMES_TIMEOUT = 180
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -144,7 +144,8 @@ class OpenRouterBackend(AIBackend):
                     "X-Title": "Uncle Tony Telegram Bot",
                 },
                 json={
-                    "model": OPENROUTER_MODEL,
+                    "model": OPENROUTER_MODELS[0],
+                    "models": OPENROUTER_MODELS,
                     "messages": [{"role": "user", "content": full_prompt}],
                 },
                 timeout=OPENROUTER_TIMEOUT,
@@ -156,7 +157,7 @@ class OpenRouterBackend(AIBackend):
             logger.warning(f"OpenRouter connection error: {e}")
             raise AIConnectionError(f"Connection failed: {e}") from e
 
-        logger.info(f"OpenRouter ({OPENROUTER_MODEL}) completed in {time.perf_counter() - start:.2f} seconds")
+        logger.info(f"OpenRouter completed in {time.perf_counter() - start:.2f} seconds")
 
         if response.status_code == 429:
             logger.warning("OpenRouter rate limit detected")

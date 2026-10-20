@@ -45,7 +45,8 @@ class HermesBackendTests(unittest.TestCase):
     def test_generate_reply_uses_backend_and_returns_stdout(self, run_mock):
         run_mock.return_value = SimpleNamespace(stdout="hello from hermes", stderr="", returncode=0)
 
-        with patch("core.backends.HERMES_CMD", "/usr/bin/hermes"), patch("core.backends.HERMES_TIMEOUT", 10):
+        with patch("core.backends.HERMES_CMD", "/usr/bin/hermes"), patch("core.backends.HERMES_TIMEOUT", 10), \
+                patch("core.backends.OPENROUTER_API_KEY", None):
             backend = HermesBackendFactory.create()
             result = backend.generate("hello")
 

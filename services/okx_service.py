@@ -73,6 +73,8 @@ def _run_okx(args: List[str]) -> Any:
         raise OKXError(
             f"OKX CLI not found. Install it via: npx @okx_ai/okx-trade-cli"
         ) from None
+    except subprocess.TimeoutExpired as exc:
+        raise OKXError(f"okx CLI timed out: {' '.join(args)}") from exc
 
     if proc.returncode != 0:
         stderr = proc.stderr.strip()
