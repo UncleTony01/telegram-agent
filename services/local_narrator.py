@@ -378,9 +378,9 @@ def narrate_tactical_report(report: TacticalReport, analysis=None) -> str:
     
     # Header
     lines.extend([
-        "=" * 60,
+        "=" * 24,
         f"UNCLE TONY TACTICAL ANALYSIS: {report.symbol}",
-        "=" * 60,
+        "=" * 24,
         "",
     ])
     
@@ -439,9 +439,9 @@ def narrate_tactical_report(report: TacticalReport, analysis=None) -> str:
     # Footer
     lines.extend([
         "",
-        "=" * 60,
+        "=" * 24,
         f"Analysis powered by Uncle Tony Tactical Engine",
-        "=" * 60,
+        "=" * 24,
     ])
     
     return "\n".join(lines)

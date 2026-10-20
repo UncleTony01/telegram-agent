@@ -630,9 +630,9 @@ def calculate_confidence_breakdown(overview: dict, market_state: str) -> Dict[st
 def generate_dashboard(intelligence: MarketIntelligence) -> str:
     """Generate executive dashboard from MarketIntelligence data."""
     lines = [
-        "=" * 60,
+        "=" * 24,
         f"ASSET:           {intelligence.asset}",
-        "-" * 60,
+        "-" * 24,
         "",
         f"RECOMMENDATION:  {intelligence.recommendation}",
         f"CONVICTION:      {intelligence.conviction_score}/100",
@@ -677,9 +677,9 @@ def generate_dashboard(intelligence: MarketIntelligence) -> str:
     
     # Summary
     lines.extend([
-        "=" * 60,
+        "=" * 24,
         "SUMMARY",
-        "=" * 60,
+        "=" * 24,
         f"{intelligence.summary}",
         "",
     ])

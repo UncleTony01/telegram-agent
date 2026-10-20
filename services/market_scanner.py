@@ -54,7 +54,7 @@ def scan_markets(
             ...
         ]
     """
-    from services.analysis_pipeline import analyze as run_analysis_pipeline
+    from core.analysis_pipeline import analyze as run_analysis_pipeline
     from services.tactical_engine import analyze_market_tactically
 
     if not symbols:
@@ -180,7 +180,7 @@ def format_scan_report(results: List[Dict[str, Any]]) -> str:
     lines = [
         "🔍 MARKET SCANNER RESULTS",
         f"Found {len(results)} opportunity/opportunities:",
-        "=" * 50,
+        "=" * 24,
         "",
     ]
 
@@ -209,5 +209,5 @@ def format_scan_report(results: List[Dict[str, Any]]) -> str:
             "",
         ])
 
-    lines.append("=" * 50)
+    lines.append("=" * 24)
     return "\n".join(lines)

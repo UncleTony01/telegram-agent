@@ -661,9 +661,9 @@ def _generate_sideways_case(analysis: 'AnalysisObject') -> str:
 def _generate_full_report(analysis: 'AnalysisObject') -> str:
     """Generate complete text report."""
     lines = [
-        "=" * 60,
+        "=" * 24,
         f"UNCLE TONY ANALYSIS: {analysis.symbol}",
-        "=" * 60,
+        "=" * 24,
         "",
         "📊 EXECUTIVE SUMMARY",
         "",
@@ -704,7 +704,7 @@ def _generate_full_report(analysis: 'AnalysisObject') -> str:
         lines.append("")
     
     lines.extend([
-        "=" * 60,
+        "=" * 24,
     ])
     
     return "\n".join(lines)

@@ -467,9 +467,9 @@ def build_tactical_narrative(tactical_analysis: Dict[str, Any]) -> str:
     
     # Header
     lines.extend([
-        "=" * 60,
+        "=" * 24,
         f"UNCLE TONY TACTICAL ANALYSIS: {symbol}",
-        "=" * 60,
+        "=" * 24,
         "",
     ])
     
@@ -606,10 +606,10 @@ def build_tactical_narrative(tactical_analysis: Dict[str, Any]) -> str:
     
     # Footer
     lines.extend([
-        "=" * 60,
+        "=" * 24,
         "Uncle Tony Tactical Engine - Local Analysis",
         "Generated without external AI dependency",
-        "=" * 60,
+        "=" * 24,
     ])
     
     return "\n".join(lines)

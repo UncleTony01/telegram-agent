@@ -15,7 +15,6 @@ from memory.conversation_memory import (
     clear_history,
 )
 
-from routers.command_router import detect_command
 from services.hermes_service import ask_hermes, generate_analysis_with_optional_ai
 from services.okx_service import extract_symbols
 from services.telegram_service import send_message

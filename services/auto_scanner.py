@@ -167,7 +167,7 @@ def scan_once(
     scanned_items: List[Dict] = []  # capture every scanned asset for leaderboard
 
     # Import here to avoid top-level heavy imports
-    from services.analysis_pipeline import analyze as run_analysis_pipeline
+    from core.analysis_pipeline import analyze as run_analysis_pipeline
     from services.tactical_engine import analyze_market_tactically
 
     for sym in watchlist:

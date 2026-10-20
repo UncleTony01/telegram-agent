@@ -157,7 +157,7 @@ def handle_analyze_command(chat_id: str, text: str):
         # Add metadata
         metadata = f"\nEngines Used: {', '.join(analysis.engines_used)}\n"
         metadata += f"Analysis Version: {analysis.analysis_version}\n"
-        metadata += "=" * 60
+        metadata += "=" * 24
         
         send_message(chat_id, report + metadata)
         

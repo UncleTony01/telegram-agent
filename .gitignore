@@ -17,3 +17,8 @@ __pycache__/
 # OS files
 .DS_Store
 Thumbs.db
+# Editor and tool folders
+.continue/
+.kilo/
+.venv-1/
+.pytest_cache/

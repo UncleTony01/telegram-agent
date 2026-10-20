@@ -839,9 +839,9 @@ def format_opportunity_report(result: OpportunityResult) -> str:
     Returns a formatted string suitable for terminal output or logging.
     """
     lines = [
-        "=" * 50,
+        "=" * 24,
         f"OPPORTUNITY SCAN: {result.symbol}",
-        "=" * 50,
+        "=" * 24,
         "",
         f"Score:           {result.score}/100",
         f"Classification:  {result.classification}",
@@ -879,7 +879,7 @@ def format_opportunity_report(result: OpportunityResult) -> str:
     
     lines.extend([
         "",
-        "=" * 50,
+        "=" * 24,
     ])
     
     return "\n".join(lines)
@@ -1019,17 +1019,17 @@ if __name__ == "__main__":
     }
     
     print("Testing Bullish Setup:")
-    print("-" * 50)
+    print("-" * 24)
     result_bullish = calculate_opportunity_score(test_data_bullish)
     print(format_opportunity_report(result_bullish))
     
     print("\n\nTesting Bearish Setup:")
-    print("-" * 50)
+    print("-" * 24)
     result_bearish = calculate_opportunity_score(test_data_bearish)
     print(format_opportunity_report(result_bearish))
     
     print("\n\nTesting Batch Scanner:")
-    print("-" * 50)
+    print("-" * 24)
     results = scan_multiple_assets([test_data_bullish, test_data_bearish])
     for r in results:
         print(f"{r.symbol}: {r.score}/100 - {r.classification}")

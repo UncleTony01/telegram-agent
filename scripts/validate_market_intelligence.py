@@ -9,7 +9,7 @@ Read-only: uses AnalysisPipeline.analyze and generate_market_intelligence only.
 from typing import List, Dict
 import statistics
 
-from services.analysis_pipeline import analyze
+from core.analysis_pipeline import analyze
 from services.market_intelligence_engine import generate_market_intelligence
 from core.analysis_object import AnalysisObject
 

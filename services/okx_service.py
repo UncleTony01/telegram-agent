@@ -768,7 +768,7 @@ def build_okx_context(symbol: str) -> str:
         return "★" * n + "☆" * (5 - n)
 
     # ── LAYER 1: Quick Read banner ────────────────────────────────────────────
-    sep = "=" * 48
+    sep = "=" * 24
 
     # Derive banner values from probability (preferred) or trade_decision
     if probability is not None:
