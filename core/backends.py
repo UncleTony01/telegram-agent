@@ -5,11 +5,18 @@ from typing import Optional
 
 import requests
 
-from config import HERMES_CMD, OPENROUTER_API_KEY, OPENROUTER_MODELS
+from config import (
+    DEEPSEEK_API_KEY,
+    DEEPSEEK_MODEL,
+    HERMES_CMD,
+    OPENROUTER_API_KEY,
+    OPENROUTER_MODELS,
+)
 
 HERMES_TIMEOUT = 180
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_TIMEOUT = 60
+DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
 
 
 class AIBackendError(Exception):
@@ -180,9 +187,75 @@ class OpenRouterBackend(AIBackend):
         return output
 
 
+class DeepSeekBackend(AIBackend):
+    """Paid DeepSeek API (OpenAI-compatible). Used as a fallback to save credit."""
+
+    def generate(self, prompt, history=None):
+        from core.prompts import build_prompt
+        from utils.logger import get_logger
+
+        logger = get_logger(__name__)
+        start = time.perf_counter()
+        try:
+            response = requests.post(
+                DEEPSEEK_URL,
+                headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}"},
+                json={
+                    "model": DEEPSEEK_MODEL,
+                    "messages": [{"role": "user", "content": build_prompt(prompt, history)}],
+                },
+                timeout=OPENROUTER_TIMEOUT,
+            )
+        except requests.Timeout as e:
+            raise AITimeoutError(f"DeepSeek timeout after {OPENROUTER_TIMEOUT}s") from e
+        except requests.RequestException as e:
+            raise AIConnectionError(f"DeepSeek connection failed: {e}") from e
+
+        logger.info(f"DeepSeek completed in {time.perf_counter() - start:.2f} seconds")
+        if response.status_code == 429:
+            raise AIRateLimitError("DeepSeek rate limit exceeded")
+        if not response.ok:
+            logger.warning(f"DeepSeek returned {response.status_code}: {response.text[:200]}")
+            raise AIBackendError(f"DeepSeek returned {response.status_code}")
+        try:
+            output = response.json()["choices"][0]["message"]["content"].strip()
+        except (ValueError, KeyError, IndexError, TypeError, AttributeError) as e:
+            raise AIBackendError("Unexpected DeepSeek response format") from e
+        if not output:
+            raise AIBackendError("DeepSeek returned no output")
+        return output
+
+
+class FallbackBackend(AIBackend):
+    """Try each backend in order; raise the last error if all fail."""
+
+    def __init__(self, backends):
+        self.backends = backends
+
+    def generate(self, prompt, history=None):
+        from utils.logger import get_logger
+
+        logger = get_logger(__name__)
+        last_error = None
+        for backend in self.backends:
+            try:
+                return backend.generate(prompt, history)
+            except AIBackendError as e:
+                logger.warning(f"{type(backend).__name__} failed ({e}); trying next backend")
+                last_error = e
+        raise last_error
+
+
 class HermesBackendFactory:
     @staticmethod
     def create():
+        backends = []
         if OPENROUTER_API_KEY:
-            return OpenRouterBackend()
-        return HermesCLIBackend()
+            backends.append(OpenRouterBackend())
+        if DEEPSEEK_API_KEY:
+            backends.append(DeepSeekBackend())
+        if not backends:
+            return HermesCLIBackend()
+        if len(backends) == 1:
+            return backends[0]
+        return FallbackBackend(backends)
