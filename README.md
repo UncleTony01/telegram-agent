@@ -22,6 +22,7 @@ Ask Uncle Tony about a coin and he pulls live market data from OKX, runs it thro
 | `What do you think about BTC?` | Spots the coin in your message and analyses it |
 | `hello` or any question | An AI chat reply |
 | `/scan` | Scans the watchlist now and sends a market brief |
+| `/portfolio` | Your OKX holdings with profit/loss (read from your account) |
 | `/clear` | Clears the conversation memory |
 | `/help` | Shows the command menu |
 

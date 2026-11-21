@@ -320,6 +320,12 @@ def _run_loop(
         except Exception as e:
             logger.error("Error during scan loop: %s", e)
         try:
+            from services.portfolio_service import check_position_alerts
+
+            check_position_alerts()
+        except Exception as e:
+            logger.error("Error checking position alerts: %s", e)
+        try:
             maybe_send_brief()
         except Exception as e:
             logger.error("Error sending market brief: %s", e)
@@ -353,6 +359,18 @@ def format_brief(items: List[Dict], title: str = "Market check") -> str:
     return "\n".join(lines)
 
 
+def _portfolio_block(previous_total: Optional[float] = None):
+    """Return (text, total) for the portfolio part of a brief, or (None, None)."""
+    try:
+        from services.portfolio_service import format_portfolio, get_portfolio
+
+        portfolio = get_portfolio(force=True)
+        return format_portfolio(portfolio, previous_total), portfolio["total"]
+    except Exception as e:
+        logger.info("Portfolio not included in brief: %s", e)
+        return None, None
+
+
 def _due_brief_slot(now: datetime) -> Optional[str]:
     """Return the brief slot key (e.g. '2026-11-21 08') if one is due now, else None."""
     for hour in BRIEF_HOURS:
@@ -382,8 +400,14 @@ def maybe_send_brief(now: Optional[datetime] = None) -> bool:
 
     hour = int(slot[-2:])
     title = "Morning market check" if hour < 12 else "Evening market check"
-    send_message(config.CHAT_ID, format_brief(items, title))
+    portfolio_text, total = _portfolio_block(state.get("last_brief_total"))
+    text = format_brief(items, title)
+    if portfolio_text:
+        text = portfolio_text + "\n\n" + text
+    send_message(config.CHAT_ID, text)
     state["last_brief"] = slot
+    if total is not None:
+        state["last_brief_total"] = total
     try:
         STATE_FILE.write_text(json.dumps(state))
     except Exception as e:
@@ -403,7 +427,11 @@ def handle_scan_command(chat_id: str) -> None:
             scan_once()
             with _lock:
                 items = list(_last_scan["items"])
-            send_message(chat_id, format_brief(items, "Market check"))
+            text = format_brief(items, "Market check")
+            portfolio_text, _ = _portfolio_block()
+            if portfolio_text:
+                text = portfolio_text + "\n\n" + text
+            send_message(chat_id, text)
         except Exception as e:
             logger.warning("/scan failed: %s", e)
             send_message(chat_id, "Sorry, the scan failed. Please try again in a few minutes.")

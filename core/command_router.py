@@ -19,7 +19,12 @@ def route_command(chat_id: str, text: str):
         return handle_price_command(chat_id, text)
 
     if normalized.startswith("/analysis"):
-        return handle_analysis_command(chat_id, text)
+        handle_analysis_command(chat_id, text)
+        return send_position_section(chat_id, text)
+
+    if normalized.startswith("/portfolio"):
+        from services.portfolio_service import handle_portfolio_command
+        return handle_portfolio_command(chat_id)
 
     if normalized.startswith("/intelligence") or normalized.startswith("/market"):
         return handle_intelligence_command(chat_id, text)
@@ -28,13 +33,42 @@ def route_command(chat_id: str, text: str):
         return handle_tactical_command(chat_id, text)
     
     if normalized.startswith("/analyze"):
-        return handle_analyze_command(chat_id, text)
+        handle_analyze_command(chat_id, text)
+        return send_position_section(chat_id, text)
 
     if normalized.startswith("/scan"):
         from services.auto_scanner import handle_scan_command
         return handle_scan_command(chat_id)
 
     return handle_message(chat_id, text)
+
+def send_position_section(chat_id: str, text: str):
+    """After an analysis, add a 'Your position' message if you hold that coin."""
+    parts = text.strip().split()
+    if len(parts) < 2:
+        return
+    symbol = parts[1].upper()
+    try:
+        from services.portfolio_service import get_position, position_section
+
+        if not get_position(symbol):
+            return
+        support = resistance = None
+        try:
+            from core.analysis_pipeline import analyze
+
+            structure = analyze(symbol).market_structure
+            support = getattr(structure, "nearest_support", None)
+            resistance = getattr(structure, "nearest_resistance", None)
+        except Exception:
+            pass
+        section = position_section(symbol, support, resistance)
+        if section:
+            send_message(chat_id, section)
+    except Exception:
+        # Portfolio is optional (e.g. no OKX key on this machine); never break analysis.
+        return
+
 
 def handle_intelligence_command(chat_id: str, text: str):
     """Handle /intelligence or /market command for full market intelligence reports."""

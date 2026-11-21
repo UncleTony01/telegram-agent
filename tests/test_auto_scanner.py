@@ -11,6 +11,7 @@ def isolated_state(tmp_path, monkeypatch):
     monkeypatch.setattr(scanner, "_last_alerts", {})
     monkeypatch.setattr(scanner, "_last_scan", {"ts": 0.0, "items": []})
     monkeypatch.setattr(scanner.config, "CHAT_ID", "123")
+    monkeypatch.setattr(scanner, "_portfolio_block", lambda previous_total=None: (None, None))
     sent = []
     import services.telegram_service as tg
 
