@@ -22,3 +22,4 @@ Thumbs.db
 .kilo/
 .venv-1/
 .pytest_cache/
+.scanner_state.json

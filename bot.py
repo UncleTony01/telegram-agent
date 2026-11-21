@@ -4,7 +4,7 @@ import time
 import traceback
 from pathlib import Path
 
-from config import BOT_TOKEN, CHAT_ID
+from config import BOT_TOKEN, CHAT_ID, SCANNER_ENABLED
 from core.command_router import route_command
 from services.telegram_service import get_updates
 from utils.chat_filter import should_process_chat
@@ -24,6 +24,11 @@ last_update_id = None
 bot_id = BOT_TOKEN.split(":", 1)[0] if BOT_TOKEN else None
 
 print("UNCLE TONY started.")
+
+if SCANNER_ENABLED:
+    from services.auto_scanner import start_scanner
+
+    start_scanner()
 
 while True:
     try:

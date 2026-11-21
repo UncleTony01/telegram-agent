@@ -10,6 +10,7 @@ HELP_TEXT = (
     "/intelligence <symbol> - Full market intelligence report\n"
     "/tactical <symbol> - Local rule-based analysis (no AI)\n"
     "/analyze <symbol> - AnalysisObject pipeline report\n"
+    "/scan - Scan the watchlist now and send a market brief\n"
     "/clear - Clear conversation memory\n"
     "\n"
     "Example:\n"

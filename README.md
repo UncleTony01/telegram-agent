@@ -21,6 +21,7 @@ Ask Uncle Tony about a coin and he pulls live market data from OKX, runs it thro
 | `/analyze BTC` | Report from the AnalysisObject pipeline |
 | `What do you think about BTC?` | Spots the coin in your message and analyses it |
 | `hello` or any question | An AI chat reply |
+| `/scan` | Scans the watchlist now and sends a market brief |
 | `/clear` | Clears the conversation memory |
 | `/help` | Shows the command menu |
 
@@ -134,9 +135,9 @@ telegram-agent/
 ## Roadmap
 
 - [ ] Keep conversation memory after a restart
-- [ ] Automatic market scanner alerts (the scanner is built but not switched on yet)
+- [x] Automatic market scanner alerts (setup alerts, 8am/8pm briefs, `/scan`)
 - [ ] Watchlist command
-- [ ] Cloud hosting so it stays online 24/7
+- [x] Cloud hosting so it stays online 24/7 (Oracle Cloud)
 
 ## Author
 

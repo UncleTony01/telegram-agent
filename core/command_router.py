@@ -30,6 +30,10 @@ def route_command(chat_id: str, text: str):
     if normalized.startswith("/analyze"):
         return handle_analyze_command(chat_id, text)
 
+    if normalized.startswith("/scan"):
+        from services.auto_scanner import handle_scan_command
+        return handle_scan_command(chat_id)
+
     return handle_message(chat_id, text)
 
 def handle_intelligence_command(chat_id: str, text: str):

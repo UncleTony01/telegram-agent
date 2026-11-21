@@ -24,3 +24,6 @@ TELEGRAM_API_IPS = [
     for ip in os.getenv("TELEGRAM_API_IPS", "149.154.167.99,149.154.167.40,149.154.166.110").split(",")
     if ip.strip()
 ]
+
+# Background market scanner: setup alerts plus 8am/8pm briefs. Set SCANNER_ENABLED=0 to turn off.
+SCANNER_ENABLED = os.getenv("SCANNER_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}

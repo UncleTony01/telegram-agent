@@ -19,6 +19,9 @@ from __future__ import annotations
 import threading
 import time
 import collections
+import json
+from datetime import datetime
+from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
 from utils.logger import get_logger
@@ -33,15 +36,18 @@ WATCHLIST: List[str] = [
     "SOL",
     "BNB",
     "TRX",
-    "TON",
+    "XRP",
     "OKB",
     "HYPE",
 ]
 
-SCAN_EVERY_SECONDS = 300  # full-cycle interval
+SCAN_EVERY_SECONDS = 900  # full-cycle interval (15 minutes)
 SYMBOL_DELAY_SECONDS = 1  # delay between individual symbol scans (rate limiting)
 ALERT_SCORE_THRESHOLD = 80  # minimum opportunity score to alert
-ALERT_COOLDOWN = 60 * 60  # seconds to suppress identical re-alert (default 1 hour)
+ALERT_COOLDOWN = 4 * 60 * 60  # don't repeat a coin's alert within 4 hours unless the recommendation changes
+BRIEF_HOURS = (8, 20)  # local hours for the twice-daily market brief
+BRIEF_WINDOW_HOURS = 2  # a brief is still sent if the bot was down at the exact hour
+STATE_FILE = Path(__file__).resolve().parent.parent / ".scanner_state.json"
 
 # Internal state
 _stop_event = threading.Event()
@@ -49,6 +55,7 @@ _thread: Optional[threading.Thread] = None
 _last_alerts: Dict[str, Dict] = {}  # symbol -> {score, recommendation, ts}
 _alert_queue = collections.deque()  # queue of pending alert dicts
 _lock = threading.Lock()
+_last_scan: Dict = {"ts": 0.0, "items": []}  # most recent full scan results
 
 # Optional alert handler override (for tests or custom integrations)
 _alert_handler: Optional[Callable[[Dict], None]] = None
@@ -137,10 +144,9 @@ def _should_alert(symbol: str, score: int, recommendation: str) -> bool:
     with _lock:
         last = _last_alerts.get(symbol)
         if last:
-            same_score = int(last.get("score", -1)) == int(score)
             same_reco = str(last.get("recommendation", "")) == str(recommendation)
             ts = last.get("ts", 0)
-            if same_score and same_reco and (now - ts) < ALERT_COOLDOWN:
+            if same_reco and (now - ts) < ALERT_COOLDOWN:
                 return False
         # Otherwise update last_alerts and allow
         _last_alerts[symbol] = {"score": int(score), "recommendation": recommendation, "ts": now}
@@ -258,6 +264,10 @@ def scan_once(
             if _stop_event.wait(symbol_delay):
                 break
 
+    with _lock:
+        _last_scan["ts"] = time.time()
+        _last_scan["items"] = list(scanned_items)
+
     # End-of-cycle leaderboard and summary
     try:
         logger.info("===== MARKET SCAN =====")
@@ -308,12 +318,96 @@ def _run_loop(
             scan_once(watchlist=watchlist, min_score=min_score, symbol_delay=symbol_delay)
         except Exception as e:
             logger.error("Error during scan loop: %s", e)
+        try:
+            maybe_send_brief()
+        except Exception as e:
+            logger.error("Error sending market brief: %s", e)
 
         # Wait for next cycle but exit early if stop requested
         if _stop_event.wait(scan_every):
             break
 
     logger.info("Auto-scanner stopped")
+
+
+# ------------------------ Market brief ------------------------------------
+def format_brief(items: List[Dict], title: str = "Market check") -> str:
+    """Turn scan results into a short Telegram-friendly summary."""
+    if not items:
+        return f"📊 Uncle Tony — {title}\n\nNo market data right now. I'll try again soon."
+    ranked = sorted(items, key=lambda x: x.get("score", 0), reverse=True)
+    lines = [f"📊 Uncle Tony — {title}", ""]
+    for item in ranked:
+        score = item.get("score", 0)
+        dot = "🟢" if score >= ALERT_SCORE_THRESHOLD else "🟡" if score >= 60 else "⚪"
+        lines.append(f"{dot} {item.get('symbol')}: {score}/100 · {item.get('recommendation') or 'WAIT'}")
+    best = ranked[0]
+    lines.append("")
+    if best.get("score", 0) >= ALERT_SCORE_THRESHOLD:
+        lines.append(f"🔥 Best setup: {best.get('symbol')} ({best.get('score')})")
+    else:
+        lines.append(f"No strong setups. Best is {best.get('symbol')} ({best.get('score')}); alerts fire at {ALERT_SCORE_THRESHOLD}+.")
+    lines.append("")
+    lines.append("Not financial advice.")
+    return "\n".join(lines)
+
+
+def _due_brief_slot(now: datetime) -> Optional[str]:
+    """Return the brief slot key (e.g. '2026-11-21 08') if one is due now, else None."""
+    for hour in BRIEF_HOURS:
+        if hour <= now.hour < hour + BRIEF_WINDOW_HOURS:
+            return f"{now:%Y-%m-%d} {hour:02d}"
+    return None
+
+
+def _read_state() -> Dict:
+    try:
+        return json.loads(STATE_FILE.read_text())
+    except Exception:
+        return {}
+
+
+def maybe_send_brief(now: Optional[datetime] = None) -> bool:
+    """Send the twice-daily brief once per slot, using the latest scan results."""
+    slot = _due_brief_slot(now or datetime.now())
+    if not slot or not getattr(config, "CHAT_ID", None):
+        return False
+    state = _read_state()
+    if state.get("last_brief") == slot:
+        return False
+    with _lock:
+        items = list(_last_scan["items"])
+    from services.telegram_service import send_message
+
+    hour = int(slot[-2:])
+    title = "Morning market check" if hour < 12 else "Evening market check"
+    send_message(config.CHAT_ID, format_brief(items, title))
+    state["last_brief"] = slot
+    try:
+        STATE_FILE.write_text(json.dumps(state))
+    except Exception as e:
+        logger.warning("Could not save scanner state: %s", e)
+    logger.info("Market brief sent for slot %s", slot)
+    return True
+
+
+def handle_scan_command(chat_id: str) -> None:
+    """/scan: run a fresh scan in the background and reply with a brief."""
+    from services.telegram_service import send_message
+
+    send_message(chat_id, "🔎 Scanning the watchlist, give me a minute...")
+
+    def _work():
+        try:
+            scan_once()
+            with _lock:
+                items = list(_last_scan["items"])
+            send_message(chat_id, format_brief(items, "Market check"))
+        except Exception as e:
+            logger.warning("/scan failed: %s", e)
+            send_message(chat_id, "Sorry, the scan failed. Please try again in a few minutes.")
+
+    threading.Thread(target=_work, daemon=True).start()
 
 
 # ------------------------ Public API -------------------------------------
