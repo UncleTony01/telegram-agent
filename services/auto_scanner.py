@@ -37,6 +37,7 @@ WATCHLIST: List[str] = [
     "BNB",
     "TRX",
     "XRP",
+    "AVAX",
     "OKB",
     "HYPE",
 ]
