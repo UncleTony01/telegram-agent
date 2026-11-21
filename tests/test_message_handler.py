@@ -19,8 +19,17 @@ class MessageHandlerTests(unittest.TestCase):
         extract_symbols_mock.return_value = ["BTC"]
         gen_analysis_mock.return_value = "BTC analysis report"
 
-        handle_message("123", "Analyze BTC")
+        with patch("services.report_card.build_analysis_card", return_value="<b>BTC card</b>") as card_mock:
+            handle_message("123", "Analyze BTC")
 
+        card_mock.assert_called_once_with("BTC")
+        send_message_mock.assert_any_call("123", "<b>BTC card</b>", parse_mode="HTML")
+        gen_analysis_mock.assert_not_called()
+
+        # If the card can't be built, the text report is still sent.
+        send_message_mock.reset_mock()
+        with patch("services.report_card.build_analysis_card", side_effect=RuntimeError("boom")):
+            handle_message("123", "Analyze BTC")
         gen_analysis_mock.assert_called_once_with("BTC")
         send_message_mock.assert_any_call("123", "BTC analysis report")
 

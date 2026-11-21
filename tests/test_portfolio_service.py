@@ -39,7 +39,7 @@ def test_parse_balance_empty_raises():
 def test_format_portfolio(portfolio):
     text = ps.format_portfolio(portfolio, previous_total=160.0)
     assert "Total: $164.79 (+$4.79 since last brief)" in text
-    assert "🔴 BTC: $73.80 · −$7.88" in text
+    assert "▼ BTC: $73.80 · −$7.88" in text
     assert "Cash (USDT): $9.67" in text
 
 
@@ -48,7 +48,7 @@ def test_position_section(monkeypatch, portfolio):
     text = ps.position_section("btc", support=55134.0, resistance=61950.0)
     assert "Your BTC position" in text
     assert "Avg buy price: $66,402" in text
-    assert "to break even" in text
+    assert "Break-even is +" in text
     assert "below your buy price" in text
     assert ps.position_section("SOL") is None
 
@@ -71,8 +71,8 @@ def test_position_alerts_drawdown_steps_and_break_even():
     ps.position_alerts(_pf(-12), state)              # level 1, silent first time
     assert ps.position_alerts(_pf(-15), state) == []  # same step
     msgs = ps.position_alerts(_pf(-22), state)        # deeper step
-    assert len(msgs) == 1 and "below your avg buy price" in msgs[0]
+    assert len(msgs) == 1 and "below your average buy price" in msgs[0]
     assert ps.position_alerts(_pf(-18), state) == []  # recovering a bit: no alert
     msgs = ps.position_alerts(_pf(1), state)          # back to break-even
-    assert len(msgs) == 1 and "break-even" in msgs[0]
+    assert len(msgs) == 1 and "back at your average buy price" in msgs[0]
     assert ps.position_alerts(_pf(3), state) == []    # stays above: no repeat

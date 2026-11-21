@@ -29,9 +29,9 @@ ITEMS = [
 def test_format_brief_ranks_and_flags_best_setup():
     text = scanner.format_brief(ITEMS, "Morning market check")
     assert text.index("SOL") < text.index("BTC") < text.index("TRX")
-    assert "🟢 SOL: 82/100 · BUY" in text
-    assert "Best setup: SOL (82)" in text
-    assert "Not financial advice." in text
+    assert "◆ SOL: 82/100 · buy setup" in text
+    assert "Strongest setup: SOL (82)" in text
+    assert "Not financial advice" in text
 
 
 def test_format_brief_without_strong_setup():

@@ -68,15 +68,21 @@ def _request(method, endpoint, **kwargs):
     raise requests.RequestException("Telegram request failed")
 
 
-def send_message(chat_id, text):
-    _request(
-        "POST",
-        "/sendMessage",
-        json={
-            "chat_id": chat_id,
-            "text": text[:4000],
-        },
-    )
+def send_message(chat_id, text, parse_mode=None):
+    payload = {"chat_id": chat_id, "text": text[:4000]}
+    if parse_mode:
+        payload["parse_mode"] = parse_mode
+        payload["disable_web_page_preview"] = True
+    response = _request("POST", "/sendMessage", json=payload)
+    if parse_mode and response is not None and getattr(response, "status_code", 200) == 400:
+        # Formatting was rejected (e.g. bad HTML): resend as plain text so the user still gets it.
+        logger.warning("Telegram rejected %s formatting; resending as plain text", parse_mode)
+        import html as _html
+        import re as _re
+
+        plain = _html.unescape(_re.sub(r"<[^>]+>", "", text))
+        _request("POST", "/sendMessage", json={"chat_id": chat_id, "text": plain[:4000]})
+    return response
 
 
 def get_updates(offset=None):

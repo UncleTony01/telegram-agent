@@ -19,8 +19,8 @@ def route_command(chat_id: str, text: str):
         return handle_price_command(chat_id, text)
 
     if normalized.startswith("/analysis"):
-        handle_analysis_command(chat_id, text)
-        return send_position_section(chat_id, text)
+        # The analysis card already includes "Your position".
+        return handle_analysis_command(chat_id, text)
 
     if normalized.startswith("/portfolio"):
         from services.portfolio_service import handle_portfolio_command

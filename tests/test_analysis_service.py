@@ -21,16 +21,33 @@ class AnalysisServiceTests(unittest.TestCase):
             "123", "Unknown symbol: FAKE. I don't have market data for it."
         )
 
+    @patch("services.report_card.build_analysis_card")
     @patch("services.analysis_service.generate_analysis_with_optional_ai")
     @patch("services.analysis_service.send_message")
     @patch("services.analysis_service.KNOWN_SYMBOLS")
     def test_handle_analysis_success(
-        self, known_mock, send_message_mock, gen_analysis_mock
+        self, known_mock, send_message_mock, gen_analysis_mock, card_mock
+    ):
+        known_mock.__contains__.return_value = True
+        card_mock.return_value = "<b>HYPE card</b>"
+
+        handle_analysis_command("123", "/analysis HYPE Should I long?")
+
+        card_mock.assert_called_once_with("HYPE")
+        send_message_mock.assert_any_call("123", "<b>HYPE card</b>", parse_mode="HTML")
+        gen_analysis_mock.assert_not_called()
+
+    @patch("services.report_card.build_analysis_card", side_effect=RuntimeError("boom"))
+    @patch("services.analysis_service.generate_analysis_with_optional_ai")
+    @patch("services.analysis_service.send_message")
+    @patch("services.analysis_service.KNOWN_SYMBOLS")
+    def test_handle_analysis_falls_back_to_text_report(
+        self, known_mock, send_message_mock, gen_analysis_mock, card_mock
     ):
         known_mock.__contains__.return_value = True
         gen_analysis_mock.return_value = "Here is the analysis..."
 
-        handle_analysis_command("123", "/analysis HYPE Should I long?")
+        handle_analysis_command("123", "/analysis HYPE")
 
         gen_analysis_mock.assert_called_once_with("HYPE")
         send_message_mock.assert_any_call("123", "Here is the analysis...")

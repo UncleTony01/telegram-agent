@@ -142,7 +142,7 @@ def format_portfolio(portfolio: Dict, previous_total: Optional[float] = None) ->
     lines.append("")
     total_pnl = 0.0
     for p in portfolio["positions"]:
-        icon = "🟢" if (p["pnl"] or 0) >= 0 else "🔴"
+        icon = "▲" if (p["pnl"] or 0) >= 0 else "▼"
         lines.append(
             f"{icon} {p['symbol']}: {_usd(p['value'])} · {_signed_usd(p['pnl'])} ({_signed_pct(p['pnl_pct'])})"
         )
@@ -151,7 +151,8 @@ def format_portfolio(portfolio: Dict, previous_total: Optional[float] = None) ->
         lines.append(f"💵 Cash (USDT): {_usd(portfolio['cash'])}")
     if portfolio["positions"]:
         lines.append("")
-        lines.append(f"Overall profit/loss on coins: {_signed_usd(total_pnl)}")
+        lines.append(f"Unrealized profit/loss on coins: {_signed_usd(total_pnl)}")
+        lines.append("Unrealized means it only becomes real if you sell.")
     return "\n".join(lines)
 
 
@@ -167,11 +168,11 @@ def position_section(symbol: str, support: Optional[float] = None, resistance: O
     lines = [f"📌 Your {pos['symbol']} position", ""]
     lines.append(f"Holding: {pos['qty']:.6g} {pos['symbol']} ({_usd(pos['value'])})")
     lines.append(f"Avg buy price: {_price(avg)} · Now: {_price(price)}")
-    lines.append(f"Profit/loss: {_signed_usd(pos['pnl'])} ({_signed_pct(pos['pnl_pct'])})")
+    lines.append(f"Unrealized: {_signed_usd(pos['pnl'])} ({_signed_pct(pos['pnl_pct'])})")
     if price < avg:
-        lines.append(f"Needs +{(avg / price - 1) * 100:.1f}% to break even")
+        lines.append(f"Break-even is +{(avg / price - 1) * 100:.1f}% away")
     else:
-        lines.append("✅ In profit")
+        lines.append("Above your buy price")
     if resistance:
         where = "above" if resistance >= avg else "below"
         lines.append(f"Next resistance {_price(resistance)} is {where} your buy price")
@@ -218,18 +219,22 @@ def position_alerts(portfolio: Dict, state: Dict) -> List[str]:
             continue
         if pct >= 0 and not s.get("above"):
             messages.append(
-                f"✅ {sym} is back at your break-even\n\n"
-                f"Now {_price(p['price'])} vs your avg buy price {_price(p['avg_price'])} "
-                f"({_signed_pct(pct)}).\nNot financial advice."
+                f"ℹ️ {sym} is back at your average buy price\n\n"
+                f"Now {_price(p['price'])} vs avg {_price(p['avg_price'])} ({_signed_pct(pct)}).\n"
+                "Just an update. If you have a plan for this level, follow it; otherwise nothing needs to change.\n"
+                "Not financial advice."
             )
             s["above"], s["level"] = True, 0
         elif pct < 0:
             s["above"] = False
             if level > s.get("level", 0):
                 messages.append(
-                    f"⚠️ {sym} is now {_signed_pct(pct)} below your avg buy price\n\n"
-                    f"Now {_price(p['price'])} vs avg {_price(p['avg_price'])}. "
-                    f"Position: {_usd(p['value'])} ({_signed_usd(p['pnl'])}).\nNot financial advice."
+                    f"ℹ️ {sym} position update\n\n"
+                    f"Now {_price(p['price'])}, {abs(pct):.0f}% below your average buy price of {_price(p['avg_price'])}. "
+                    f"Position value {_usd(p['value'])}.\n"
+                    "Unrealized: nothing is lost unless you sell. Price swings like this are common in crypto; "
+                    "no decision is needed today unless it's part of your plan.\n"
+                    "Not financial advice."
                 )
             s["level"] = level
     return messages

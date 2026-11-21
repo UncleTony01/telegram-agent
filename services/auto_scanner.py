@@ -101,29 +101,7 @@ def _dispatch_alert(alert: Dict) -> None:
             try:
                 from services.telegram_service import send_message
 
-                text_lines = ["🔥 HIGH QUALITY SETUP\n"]
-                text_lines.append(alert.get("symbol", "UNKNOWN"))
-                text_lines.append("")
-                text_lines.append(f"Opportunity Score: {alert.get('score')}")
-                text_lines.append("")
-                text_lines.append(f"Confidence: {alert.get('confidence')}%")
-                text_lines.append("")
-                bias = alert.get("bias") or alert.get("decision_bias") or "n/a"
-                text_lines.append("Bias:")
-                text_lines.append(bias)
-                text_lines.append("")
-                text_lines.append("Recommendation:")
-                text_lines.append(alert.get("recommendation", "n/a"))
-                text_lines.append("")
-                support = _fmt_price(alert.get("support"))
-                resistance = _fmt_price(alert.get("resistance"))
-                text_lines.append("Support:")
-                text_lines.append(support)
-                text_lines.append("")
-                text_lines.append("Resistance:")
-                text_lines.append(resistance)
-
-                text = "\n".join(text_lines)
+                text = format_alert(alert)
 
                 # send in background so that network delays don't block scanner
                 sender = threading.Thread(target=send_message, args=(config.CHAT_ID, text), daemon=True)
@@ -137,6 +115,30 @@ def _dispatch_alert(alert: Dict) -> None:
         logger.info("ALERT: %s", alert)
     except Exception as e:
         logger.error("Error while dispatching alert: %s", e)
+
+
+def calm_reco(recommendation: Optional[str]) -> str:
+    r = str(recommendation or "WAIT").upper()
+    if r in ("BUY", "LONG", "STRONG BUY"):
+        return "buy setup"
+    if r in ("SELL", "SHORT", "STRONG SELL"):
+        return "sell setup"
+    return "wait"
+
+
+def format_alert(alert: Dict) -> str:
+    """Calm, factual setup alert (no hype, no urgency)."""
+    sym = alert.get("symbol", "UNKNOWN")
+    lines = [f"🔷 Setup worth a look: {sym}", ""]
+    lines.append(f"Score {alert.get('score')}/100 · {calm_reco(alert.get('recommendation'))}")
+    lines.append(f"Confidence {alert.get('confidence')}%")
+    if alert.get("support") or alert.get("resistance"):
+        lines.append(f"Support ${_fmt_price(alert.get('support'))} · Resistance ${_fmt_price(alert.get('resistance'))}")
+    lines.append("")
+    lines.append(f"This is information, not an instruction. Send /analysis {sym} for the full picture, "
+                 "and only act if it fits your plan.")
+    lines.append("Not financial advice.")
+    return "\n".join(lines)
 
 
 def _should_alert(symbol: str, score: int, recommendation: str) -> bool:
@@ -346,16 +348,16 @@ def format_brief(items: List[Dict], title: str = "Market check") -> str:
     lines = [f"📊 Uncle Tony — {title}", ""]
     for item in ranked:
         score = item.get("score", 0)
-        dot = "🟢" if score >= ALERT_SCORE_THRESHOLD else "🟡" if score >= 60 else "⚪"
-        lines.append(f"{dot} {item.get('symbol')}: {score}/100 · {item.get('recommendation') or 'WAIT'}")
+        dot = "◆" if score >= ALERT_SCORE_THRESHOLD else "◇" if score >= 60 else "·"
+        lines.append(f"{dot} {item.get('symbol')}: {score}/100 · {calm_reco(item.get('recommendation'))}")
     best = ranked[0]
     lines.append("")
     if best.get("score", 0) >= ALERT_SCORE_THRESHOLD:
-        lines.append(f"🔥 Best setup: {best.get('symbol')} ({best.get('score')})")
+        lines.append(f"Strongest setup: {best.get('symbol')} ({best.get('score')}). Worth a look, no rush.")
     else:
-        lines.append(f"No strong setups. Best is {best.get('symbol')} ({best.get('score')}); alerts fire at {ALERT_SCORE_THRESHOLD}+.")
+        lines.append(f"No strong setups right now, so no action needed. Highest is {best.get('symbol')} ({best.get('score')}).")
     lines.append("")
-    lines.append("Not financial advice.")
+    lines.append("Stick to your plan · Not financial advice")
     return "\n".join(lines)
 
 

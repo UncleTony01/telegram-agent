@@ -48,7 +48,14 @@ def handle_analysis_command(chat_id: str, text: str):
     send_message(chat_id, "Analyzing...")
 
     try:
-        # Use new architecture - AI is optional
+        # Visual card first; fall back to the text report if anything goes wrong.
+        try:
+            from services.report_card import build_analysis_card
+
+            send_message(chat_id, build_analysis_card(symbol), parse_mode="HTML")
+            return
+        except Exception as card_error:
+            logger.warning(f"Analysis card failed for {symbol}: {card_error}")
         response = generate_analysis_with_optional_ai(symbol)
         send_message(chat_id, response)
         
