@@ -5,6 +5,9 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
+# The only chat that may see portfolio data. Defaults to CHAT_ID. Set it before
+# opening the bot to other people (clearing CHAT_ID).
+OWNER_CHAT_ID = os.getenv("OWNER_CHAT_ID") or CHAT_ID
 HERMES_CMD = os.getenv("HERMES_CMD")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 # Optional paid fallback, used only when the free OpenRouter models fail.

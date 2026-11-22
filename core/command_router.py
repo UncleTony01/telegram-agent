@@ -23,6 +23,10 @@ def route_command(chat_id: str, text: str):
         return handle_analysis_command(chat_id, text)
 
     if normalized.startswith("/portfolio"):
+        from utils.chat_filter import is_owner
+
+        if not is_owner(chat_id):
+            return send_message(chat_id, "🔒 Portfolio is private to the bot owner.")
         from services.portfolio_service import handle_portfolio_command
         return handle_portfolio_command(chat_id)
 
@@ -48,6 +52,10 @@ def route_command(chat_id: str, text: str):
 
 def send_position_section(chat_id: str, text: str):
     """After an analysis, add a 'Your position' message if you hold that coin."""
+    from utils.chat_filter import is_owner
+
+    if not is_owner(chat_id):
+        return
     parts = text.strip().split()
     if len(parts) < 2:
         return

@@ -430,7 +430,9 @@ def handle_scan_command(chat_id: str) -> None:
             with _lock:
                 items = list(_last_scan["items"])
             text = format_brief(items, "Market check")
-            portfolio_text, _ = _portfolio_block()
+            from utils.chat_filter import is_owner
+
+            portfolio_text = _portfolio_block()[0] if is_owner(chat_id) else None
             if portfolio_text:
                 text = portfolio_text + "\n\n" + text
             send_message(chat_id, text)

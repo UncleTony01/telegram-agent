@@ -274,7 +274,7 @@ def get_take(report, position: Optional[Dict]) -> str:
 
 
 # ------------------------ Entry point ------------------------------------
-def build_analysis_card(symbol: str) -> str:
+def build_analysis_card(symbol: str, include_position: bool = True) -> str:
     """Fetch data, run the rule-based engines, and return the HTML card."""
     from services.local_narrator import build_tactical_report
     from services.okx_service import get_market_overview
@@ -292,12 +292,13 @@ def build_analysis_card(symbol: str) -> str:
     report = build_tactical_report(overview)
 
     position = None
-    try:
-        from services.portfolio_service import get_position
+    if include_position:
+        try:
+            from services.portfolio_service import get_position
 
-        position = get_position(symbol)
-    except Exception:
-        position = None  # portfolio is optional
+            position = get_position(symbol)
+        except Exception:
+            position = None  # portfolio is optional
 
     take = get_take(report, position)
     return render_card(

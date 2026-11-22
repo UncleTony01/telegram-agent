@@ -66,7 +66,9 @@ def handle_message(chat_id, text):
             try:
                 from services.report_card import build_analysis_card, strip_html
 
-                card = build_analysis_card(symbol)
+                from utils.chat_filter import is_owner
+
+                card = build_analysis_card(symbol, include_position=is_owner(chat_id))
                 add_message(chat_id, "user", text)
                 add_message(chat_id, "assistant", strip_html(card))
                 send_message(chat_id, card, parse_mode="HTML")

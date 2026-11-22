@@ -52,7 +52,13 @@ def handle_analysis_command(chat_id: str, text: str):
         try:
             from services.report_card import build_analysis_card
 
-            send_message(chat_id, build_analysis_card(symbol), parse_mode="HTML")
+            from utils.chat_filter import is_owner
+
+            send_message(
+                chat_id,
+                build_analysis_card(symbol, include_position=is_owner(chat_id)),
+                parse_mode="HTML",
+            )
             return
         except Exception as card_error:
             logger.warning(f"Analysis card failed for {symbol}: {card_error}")

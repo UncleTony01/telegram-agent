@@ -33,7 +33,7 @@ class AnalysisServiceTests(unittest.TestCase):
 
         handle_analysis_command("123", "/analysis HYPE Should I long?")
 
-        card_mock.assert_called_once_with("HYPE")
+        card_mock.assert_called_once_with("HYPE", include_position=False)
         send_message_mock.assert_any_call("123", "<b>HYPE card</b>", parse_mode="HTML")
         gen_analysis_mock.assert_not_called()
 

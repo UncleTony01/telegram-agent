@@ -22,7 +22,7 @@ class MessageHandlerTests(unittest.TestCase):
         with patch("services.report_card.build_analysis_card", return_value="<b>BTC card</b>") as card_mock:
             handle_message("123", "Analyze BTC")
 
-        card_mock.assert_called_once_with("BTC")
+        card_mock.assert_called_once_with("BTC", include_position=False)
         send_message_mock.assert_any_call("123", "<b>BTC card</b>", parse_mode="HTML")
         gen_analysis_mock.assert_not_called()
 
