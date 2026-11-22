@@ -4,7 +4,7 @@ import time
 import traceback
 from pathlib import Path
 
-from config import BOT_TOKEN, CHAT_ID, SCANNER_ENABLED
+from config import BOT_TOKEN, CHAT_ID, HEARTBEAT_ENABLED, SCANNER_ENABLED
 from core.command_router import route_command
 from services.telegram_service import get_updates
 from utils.chat_filter import should_process_chat
@@ -30,6 +30,17 @@ if SCANNER_ENABLED:
 
     start_scanner()
 
+if HEARTBEAT_ENABLED:
+    from services.heartbeat import record_poll_error, record_poll_ok, start_heartbeat
+
+    start_heartbeat()
+else:
+    def record_poll_ok():
+        pass
+
+    def record_poll_error():
+        pass
+
 while True:
     try:
         updates = get_updates(
@@ -39,6 +50,7 @@ while True:
         print(updates)
 
         if updates.get("ok"):
+            record_poll_ok()
             for update in updates["result"]:
                 last_update_id = update["update_id"]
 
@@ -61,4 +73,5 @@ while True:
 
     except Exception:
         traceback.print_exc()
+        record_poll_error()
         time.sleep(5)

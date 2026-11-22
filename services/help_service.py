@@ -12,6 +12,7 @@ HELP_TEXT = (
     "/analyze <symbol> - AnalysisObject pipeline report\n"
     "/scan - Scan the watchlist now and send a market brief\n"
     "/portfolio - Your OKX holdings and profit/loss\n"
+    "/status - Check Uncle Tony is healthy\n"
     "/clear - Clear conversation memory\n"
     "\n"
     "Example:\n"

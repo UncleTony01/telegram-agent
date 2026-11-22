@@ -27,3 +27,12 @@ TELEGRAM_API_IPS = [
 
 # Background market scanner: setup alerts plus 8am/8pm briefs. Set SCANNER_ENABLED=0 to turn off.
 SCANNER_ENABLED = os.getenv("SCANNER_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
+
+# Heartbeat: start-up message, daily check-in and a watchdog that warns if the scanner
+# or Telegram polling stalls. Set HEARTBEAT_ENABLED=0 to turn off.
+HEARTBEAT_ENABLED = os.getenv("HEARTBEAT_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
+# Hour of the daily check-in, in the VM's local time (0-23).
+try:
+    HEARTBEAT_HOUR = min(23, max(0, int(os.getenv("HEARTBEAT_HOUR", "7"))))
+except ValueError:
+    HEARTBEAT_HOUR = 7

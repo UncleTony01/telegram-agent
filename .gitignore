@@ -24,3 +24,4 @@ Thumbs.db
 .pytest_cache/
 .scanner_state.json
 .portfolio_state.json
+.heartbeat_state.json

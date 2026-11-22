@@ -36,6 +36,10 @@ def route_command(chat_id: str, text: str):
         handle_analyze_command(chat_id, text)
         return send_position_section(chat_id, text)
 
+    if normalized.startswith("/status"):
+        from services.heartbeat import handle_status_command
+        return handle_status_command(chat_id)
+
     if normalized.startswith("/scan"):
         from services.auto_scanner import handle_scan_command
         return handle_scan_command(chat_id)
