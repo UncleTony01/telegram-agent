@@ -4,7 +4,7 @@ import time
 import traceback
 from pathlib import Path
 
-from config import BOT_TOKEN, CHAT_ID, HEARTBEAT_ENABLED, SCANNER_ENABLED
+from config import BOT_TOKEN, CHAT_ID, HEARTBEAT_ENABLED, SCANNER_ENABLED, X_POST_ENABLED
 from core.command_router import route_command
 from services.telegram_service import get_updates
 from utils.chat_filter import should_process_chat
@@ -29,6 +29,11 @@ if SCANNER_ENABLED:
     from services.auto_scanner import start_scanner
 
     start_scanner()
+
+if X_POST_ENABLED:
+    from services.x_poster import start_x_poster
+
+    start_x_poster()
 
 if HEARTBEAT_ENABLED:
     from services.heartbeat import record_poll_error, record_poll_ok, start_heartbeat
