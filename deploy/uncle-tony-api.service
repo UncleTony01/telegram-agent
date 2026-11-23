@@ -1,0 +1,32 @@
+[Unit]
+Description=Uncle Tony x402 Reality Check API (sandboxed)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/telegram-agent
+Environment=X402_PAY_TO=0xYourWalletAddress
+Environment=X402_NETWORK=eip155:84532
+Environment=X402_PRICE=$0.01
+ExecStart=/home/ubuntu/telegram-agent/.venv/bin/uvicorn api.server:app --host 127.0.0.1 --port 8402 --proxy-headers --forwarded-allow-ips 127.0.0.1
+Restart=always
+RestartSec=10
+# Sandbox: the API cannot see the bot secrets, the OKX key, SSH keys or wallets.
+BindReadOnlyPaths=/dev/null:/home/ubuntu/telegram-agent/.env
+InaccessiblePaths=-/home/ubuntu/.okx -/home/ubuntu/.ssh -/home/ubuntu/.x402 -/home/ubuntu/.config -/home/ubuntu/bin -/home/ubuntu/.local/bin
+ProtectSystem=strict
+ReadWritePaths=/home/ubuntu/telegram-agent/data
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target
