@@ -64,7 +64,7 @@ def daily(tmp_path, monkeypatch):
     monkeypatch.setattr(x_poster, "STATE_FILE", tmp_path / "state.json")
     sent, posted, ledger = [], [], []
     monkeypatch.setattr(x_poster, "_send_owner", sent.append)
-    monkeypatch.setattr(x_poster, "send_draft", lambda c, t, h: sent.append(h + "\n" + t))
+    monkeypatch.setattr(x_poster, "send_draft", lambda c, t, h, **k: sent.append(h + "\n" + t))
     monkeypatch.setattr(config, "OWNER_CHAT_ID", "1", raising=False)
     monkeypatch.setattr(x_poster, "post_to_x", lambda t: posted.append(t) or "123")
     monkeypatch.setattr(x_poster, "_trending_symbols", lambda: ["AVAX"])
@@ -141,12 +141,22 @@ def test_intent_link_prefills_post():
     assert parse_qs(urlparse(url).query)["text"][0] == text
 
 
-def test_send_draft_has_copyable_text_and_button(monkeypatch):
-    calls = []
-    monkeypatch.setattr("services.telegram_service.send_message",
-                        lambda c, t, **k: calls.append((t, k)))
-    x_poster.send_draft("1", "A < B & C", "📝 Draft")
-    text, kwargs = calls[0]
-    assert "<pre>A &lt; B &amp; C</pre>" in text and kwargs["parse_mode"] == "HTML"
+def test_send_draft_sends_card_with_caption_and_button(monkeypatch):
+    photos, texts = [], []
+    monkeypatch.setattr("services.telegram_service.send_photo",
+                        lambda c, b, **k: photos.append((b, k)) or {"ok": True})
+    monkeypatch.setattr("services.telegram_service.send_message", lambda c, t, **k: texts.append(t))
+    x_poster.send_draft("1", "A < B & C", "📝 Draft", fmt="ai")
+    png, kwargs = photos[0]
+    assert png[:8] == b"\x89PNG\r\n\x1a\n" and not texts
+    assert "<pre>A &lt; B &amp; C</pre>" in kwargs["caption"] and kwargs["parse_mode"] == "HTML"
     button = kwargs["reply_markup"]["inline_keyboard"][0][0]
     assert button["text"] == "✍️ Post on X" and button["url"].startswith("https://x.com/intent/post?")
+
+
+def test_send_draft_falls_back_to_text_when_photo_fails(monkeypatch):
+    texts = []
+    monkeypatch.setattr("services.telegram_service.send_photo", lambda c, b, **k: None)
+    monkeypatch.setattr("services.telegram_service.send_message", lambda c, t, **k: texts.append(t))
+    x_poster.send_draft("1", "hello", "📝 Draft")
+    assert "<pre>hello</pre>" in texts[0]

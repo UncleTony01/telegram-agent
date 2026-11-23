@@ -95,3 +95,22 @@ def get_updates(offset=None):
 
     response = _request("GET", "/getUpdates", params=params, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
     return response.json()
+
+
+def send_photo(chat_id, photo_bytes, caption=None, parse_mode=None, reply_markup=None):
+    """Send a PNG with an optional caption (Telegram allows up to 1024 characters)."""
+    import json as _json
+
+    data = {"chat_id": chat_id}
+    if caption:
+        data["caption"] = caption[:1024]
+    if parse_mode:
+        data["parse_mode"] = parse_mode
+    if reply_markup:
+        data["reply_markup"] = _json.dumps(reply_markup)
+    try:
+        return _request("post", "/sendPhoto", data=data,
+                        files={"photo": ("post.png", photo_bytes, "image/png")})
+    except Exception as e:
+        logger.error("send_photo failed: %s", e)
+        return None

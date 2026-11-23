@@ -51,3 +51,6 @@ X_API_KEY = os.getenv("X_API_KEY")
 X_API_SECRET = os.getenv("X_API_SECRET")
 X_ACCESS_TOKEN = os.getenv("X_ACCESS_TOKEN")
 X_ACCESS_SECRET = os.getenv("X_ACCESS_SECRET")
+
+# Shown on the image card attached to X drafts, e.g. AnthonyMuthoka5 (optional).
+X_HANDLE = os.getenv("X_HANDLE", "").strip() or None

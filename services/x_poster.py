@@ -192,7 +192,8 @@ def build_post(claim_text: Optional[str] = None, state: Optional[Dict] = None,
             logger.warning("%s post failed, falling back to a Reality Check: %s", fmt, e)
             post = None
         if post:
-            return {"text": post["text"], "report": None, "symbol": post.get("symbol"), "format": fmt}
+            return {"text": _with_angle(post["text"], fmt), "report": None,
+                    "symbol": post.get("symbol"), "format": fmt}
         fmt = "reality"
 
     if claim_text:
@@ -206,7 +207,15 @@ def build_post(claim_text: Optional[str] = None, state: Optional[Dict] = None,
     if not inputs:
         return None
     report = analyse(claim, inputs)
-    return {"text": format_post(report), "report": report, "symbol": report["symbol"], "format": "reality"}
+    return {"text": _with_angle(format_post(report), "reality"), "report": report,
+            "symbol": report["symbol"], "format": "reality"}
+
+
+def _with_angle(text: str, fmt: str) -> str:
+    """Add an AI-written stance + question to data posts when DeepSeek is available."""
+    from services.post_studio import add_discussion_angle
+
+    return add_discussion_angle(text, fmt)
 
 
 # ------------------------------ Posting to X -----------------------------
@@ -257,15 +266,25 @@ def intent_link(text: str) -> str:
     return f"{INTENT_URL}?{urllib.parse.urlencode({'text': text}, quote_via=urllib.parse.quote)}"
 
 
-def send_draft(chat_id: str, text: str, header: str) -> None:
-    """Send a draft the owner can post in one tap, or copy by tapping the text."""
+def send_draft(chat_id: str, text: str, header: str, fmt: str = "reality") -> None:
+    """Send the draft with its image card: save the picture, then tap the button to post."""
     import html as _html
 
-    from services.telegram_service import send_message
+    from services.telegram_service import send_message, send_photo
 
-    body = f"{header}\n\n<pre>{_html.escape(text, quote=False)}</pre>\n<i>Tap the text to copy, or the button to open X with it ready.</i>"
     markup = {"inline_keyboard": [[{"text": "✍️ Post on X", "url": intent_link(text)}]]}
-    send_message(chat_id, body, parse_mode="HTML", reply_markup=markup)
+    body = f"{header}\n\n<pre>{_html.escape(text, quote=False)}</pre>"
+    hint = "\n<i>Save the picture, tap Post on X, then attach it. Or tap the text to copy.</i>"
+    try:
+        from services.post_studio import render_card
+
+        card = render_card(text, fmt, handle=getattr(config, "X_HANDLE", None))
+        if send_photo(chat_id, card, caption=body + hint, parse_mode="HTML", reply_markup=markup):
+            return
+    except Exception as e:
+        logger.warning("Image card failed, sending text only: %s", e)
+    send_message(chat_id, body + "\n<i>Tap the text to copy, or the button to open X with it ready.</i>",
+                 parse_mode="HTML", reply_markup=markup)
 
 
 # ------------------------------ Daily job --------------------------------
@@ -323,7 +342,7 @@ def maybe_post_daily(now: Optional[float] = None) -> Optional[str]:
         chat_id = getattr(config, "OWNER_CHAT_ID", None) or getattr(config, "CHAT_ID", None)
         if chat_id:
             try:
-                send_draft(chat_id, post["text"], f"📝 Today's X post is ready ({len(post['text'])}/280)")
+                send_draft(chat_id, post["text"], f"📝 Today's X post is ready ({len(post['text'])}/280)", fmt=post.get("format", "reality"))
             except Exception as e:
                 logger.warning("X draft send failed: %s", e)
 
@@ -386,4 +405,5 @@ def handle_xpost_command(chat_id: str, text: str) -> None:
         chat_id,
         post["text"],
         f"📝 Draft ({len(post['text'])}/280). Not posted.\nDaily post at {hour:02d}:00, {mode}.",
+        fmt=post.get("format", "reality"),
     )
