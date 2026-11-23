@@ -44,6 +44,10 @@ def route_command(chat_id: str, text: str):
         from services.reality_check import handle_check_command
         return handle_check_command(chat_id, text)
 
+    if normalized.startswith("/xpost"):
+        from services.x_poster import handle_xpost_command
+        return handle_xpost_command(chat_id, text)
+
     if normalized.startswith("/ledger"):
         from services.hype_ledger import handle_ledger_command
         return handle_ledger_command(chat_id)

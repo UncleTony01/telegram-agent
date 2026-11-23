@@ -39,3 +39,15 @@ try:
     HEARTBEAT_HOUR = min(23, max(0, int(os.getenv("HEARTBEAT_HOUR", "7"))))
 except ValueError:
     HEARTBEAT_HOUR = 7
+
+# Daily Reality Check post on X. Without all four X keys it runs in preview mode:
+# the draft goes to the owner on Telegram and nothing is posted. Set X_POST_ENABLED=0 to turn off.
+X_POST_ENABLED = os.getenv("X_POST_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
+try:
+    X_POST_HOUR = min(23, max(0, int(os.getenv("X_POST_HOUR", "18"))))
+except ValueError:
+    X_POST_HOUR = 18
+X_API_KEY = os.getenv("X_API_KEY")
+X_API_SECRET = os.getenv("X_API_SECRET")
+X_ACCESS_TOKEN = os.getenv("X_ACCESS_TOKEN")
+X_ACCESS_SECRET = os.getenv("X_ACCESS_SECRET")
