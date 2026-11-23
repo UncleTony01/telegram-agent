@@ -25,3 +25,4 @@ Thumbs.db
 .scanner_state.json
 .portfolio_state.json
 .heartbeat_state.json
+data/

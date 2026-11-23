@@ -40,6 +40,14 @@ def route_command(chat_id: str, text: str):
         handle_analyze_command(chat_id, text)
         return send_position_section(chat_id, text)
 
+    if normalized.startswith("/check"):
+        from services.reality_check import handle_check_command
+        return handle_check_command(chat_id, text)
+
+    if normalized.startswith("/ledger"):
+        from services.hype_ledger import handle_ledger_command
+        return handle_ledger_command(chat_id)
+
     if normalized.startswith("/status"):
         from services.heartbeat import handle_status_command
         return handle_status_command(chat_id)
