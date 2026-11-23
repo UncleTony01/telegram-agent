@@ -186,7 +186,7 @@ def _usd(v: Optional[float]) -> str:
             return f"${n:,.2f}{suf}" if n < 10 else f"${n:,.1f}{suf}".replace(".0" + suf, suf)
     if v >= 100:
         return f"${v:,.0f}"
-    if v >= 1:
+    if v >= 0.1:
         return f"${v:,.2f}"
     return f"${v:.6f}".rstrip("0")
 

@@ -159,13 +159,38 @@ def format_post(r: Dict) -> str:
 
 def build_post(claim_text: Optional[str] = None, state: Optional[Dict] = None,
                now: Optional[float] = None) -> Optional[Dict]:
-    """Return {'text', 'report'} or None if data is unavailable."""
+    """Return {'text', 'report', 'symbol', 'format'} or None if data is unavailable.
+
+    With no claim, the format follows the day of the week (see services/content_mix.py).
+    claim_text may also be a format name, e.g. "recovery" or "ai".
+    """
+    from services.content_mix import FORMATS, build_mixed_post, format_for_day
     from services.reality_check import analyse, fetch_inputs, parse_claim
+
+    state = state if state is not None else {}
+    now = now or time.time()
+    fmt = "reality"
+    if claim_text and claim_text.strip().lower() in FORMATS:
+        fmt = claim_text.strip().lower()
+        claim_text = None
+    elif not claim_text:
+        fmt = format_for_day(datetime.fromtimestamp(now).weekday())
+
+    if fmt != "reality":
+        recent = {s for s, ts in (state.get("recent") or {}).items() if now - ts < REPEAT_DAYS * 86400}
+        try:
+            post = build_mixed_post(fmt, state, recent, trending=_trending_symbols() if fmt == "hype" else None)
+        except Exception as e:
+            logger.warning("%s post failed, falling back to a Reality Check: %s", fmt, e)
+            post = None
+        if post:
+            return {"text": post["text"], "report": None, "symbol": post.get("symbol"), "format": fmt}
+        fmt = "reality"
 
     if claim_text:
         claim = parse_claim("/check " + claim_text)
     else:
-        sym = pick_symbol(state if state is not None else {}, now or time.time())
+        sym = pick_symbol(state, now)
         claim = parse_claim(f"/check {sym} 10x")
     if not claim:
         return None
@@ -173,7 +198,7 @@ def build_post(claim_text: Optional[str] = None, state: Optional[Dict] = None,
     if not inputs:
         return None
     report = analyse(claim, inputs)
-    return {"text": format_post(report), "report": report}
+    return {"text": format_post(report), "report": report, "symbol": report["symbol"], "format": "reality"}
 
 
 # ------------------------------ Posting to X -----------------------------
@@ -271,7 +296,8 @@ def maybe_post_daily(now: Optional[float] = None) -> Optional[str]:
     # Mark the day as done before posting, so a failure never causes repeat posts.
     report = post["report"]
     state["last_day"] = today
-    state.setdefault("recent", {})[report["symbol"]] = now
+    if post.get("symbol"):
+        state.setdefault("recent", {})[post["symbol"]] = now
     _write_state(state)
 
     if live_mode():
@@ -293,12 +319,13 @@ def maybe_post_daily(now: Optional[float] = None) -> Optional[str]:
             except Exception as e:
                 logger.warning("X draft send failed: %s", e)
 
-    try:
-        from services.hype_ledger import record_check
+    if report:
+        try:
+            from services.hype_ledger import record_check
 
-        record_check(report)
-    except Exception as e:
-        logger.warning("Hype ledger write failed: %s", e)
+            record_check(report)
+        except Exception as e:
+            logger.warning("Hype ledger write failed: %s", e)
     return post["text"]
 
 
@@ -343,7 +370,7 @@ def handle_xpost_command(chat_id: str, text: str) -> None:
         send_message(chat_id, "Market data is unavailable right now. Try again in a minute.")
         return
     if not post:
-        send_message(chat_id, "I couldn't build a draft for that. Try /xpost or /xpost AVAX 100B")
+        send_message(chat_id, "I couldn't build a draft for that. Try /xpost, /xpost recovery, /xpost ai or /xpost AVAX 100B")
         return
     mode = "posted automatically" if live_mode() else "sent to you to post yourself"
     hour = getattr(config, "X_POST_HOUR", 18)
