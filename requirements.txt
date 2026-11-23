@@ -1,2 +1,3 @@
 requests
 python-dotenv
+x402[fastapi,evm,httpx]==2.29.0

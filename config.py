@@ -51,3 +51,10 @@ X_API_KEY = os.getenv("X_API_KEY")
 X_API_SECRET = os.getenv("X_API_SECRET")
 X_ACCESS_TOKEN = os.getenv("X_ACCESS_TOKEN")
 X_ACCESS_SECRET = os.getenv("X_ACCESS_SECRET")
+
+# x402 paid API (api/server.py). Starts on Base Sepolia test USDC with the free
+# x402.org facilitator. For real USDC: X402_NETWORK=eip155:8453 and a mainnet facilitator.
+X402_PAY_TO = os.getenv("X402_PAY_TO")  # wallet address that receives payments
+X402_NETWORK = os.getenv("X402_NETWORK", "eip155:84532")
+X402_PRICE = os.getenv("X402_PRICE", "$0.01")
+X402_FACILITATOR_URL = os.getenv("X402_FACILITATOR_URL", "https://x402.org/facilitator")
