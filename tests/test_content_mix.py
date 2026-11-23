@@ -96,4 +96,4 @@ def test_named_format_and_fallback(monkeypatch):
     monkeypatch.setattr("services.reality_check.fetch_inputs", lambda s: _inputs())
     monkeypatch.setattr(x_poster, "_trending_symbols", lambda: [])
     post = x_poster.build_post(claim_text="recovery", state={})
-    assert post["format"] == "reality" and post["text"].startswith("Reality Check")
+    assert post["format"] == "reality" and post["text"].startswith("Someone will tell you")

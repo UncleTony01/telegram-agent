@@ -116,44 +116,52 @@ def pick_symbol(state: Dict, now: float, trending: Optional[List[str]] = None) -
 
 
 # ------------------------------ Post text --------------------------------
+def _claim_phrase(r: Dict) -> str:
+    from services.reality_check import _usd
+
+    c = r["claim"]
+    if c.kind == "multiple":
+        return f"can {c.value:g}x"
+    if c.kind == "price":
+        return f"will hit {_usd(c.value)}"
+    return f"will reach a {_usd(c.value)} market cap"
+
+
 def format_post(r: Dict) -> str:
-    """A plain-text post of at most 280 characters. Optional lines are dropped to fit."""
+    """Hook first, numbers second, a question last. At most 280 characters; optional lines drop to fit."""
     from services.reality_check import _usd
 
     sym = r["symbol"]
-    head = f"Reality Check: ${sym} {r['claim'].text.split(None, 1)[-1]} → {_usd(r['target_price'])}"
-    now_line = f"Now {_usd(r['price'])} · rank #{r['rank_now'] or '?'}"
-    if r["multiple"]:
-        now_line += f" · needs {r['multiple']:,.1f}x"
-
-    if r["rank_at_target"] > 100:
-        rank_line = f"Market cap at target: {_usd(r['target_mcap'])}, still outside today's top 100."
-    else:
-        rank_line = f"Market cap at target: {_usd(r['target_mcap'])}, #{r['rank_at_target']} today"
+    head = f"Someone will tell you ${sym} {_claim_phrase(r)}.\nHere's what that really means:"
+    price_line = f"• Price: {_usd(r['price'])} → {_usd(r['target_price'])}"
+    mcap_line = f"• Market cap: {_usd(r['mcap'])} → {_usd(r['target_mcap'])}"
+    if r["rank_at_target"] <= 100:
+        mcap_line += f" (#{r['rank_at_target']}"
         if r["passes"]:
-            rank_line += f", above {', '.join(r['passes'][:3])}"
-        rank_line += "."
+            mcap_line += f", above {' & '.join(r['passes'][:2])}"
+        mcap_line += ")"
 
     optional: List[str] = []
     d = r.get("dilution")
     if d:
-        optional.append(f"Supply can still grow ~{d['extra_pct']:.0f}%.")
+        optional.append(f"• Supply still to come: +{d['extra_pct']:.0f}%")
     if r.get("ath"):
         if r["target_price"] and r["target_price"] > r["ath"]:
-            optional.append(f"Above the all-time high ({_usd(r['ath'])}).")
+            optional.append(f"• That's above its all-time high ({_usd(r['ath'])})")
         else:
-            optional.append(f"All-time high: {_usd(r['ath'])}.")
+            optional.append(f"• All-time high: {_usd(r['ath'])}")
 
-    tail = "Not impossible, not guaranteed. Just the maths. Data, not advice."
+    tail = "Not impossible. Just know what you're betting on.\n\nWould you take that bet? (Data, not advice)"
 
-    lines = [head, "", now_line, rank_line] + optional + ["", tail]
-    text = "\n".join(lines)
+    def build(opt: List[str]) -> str:
+        return "\n".join([head, "", price_line, mcap_line] + opt + ["", tail])
+
+    text = build(optional)
     while len(text) > MAX_LEN and optional:
         optional.pop()
-        lines = [head, "", now_line, rank_line] + optional + ["", tail]
-        text = "\n".join(lines)
+        text = build(optional)
     if len(text) > MAX_LEN:
-        text = "\n".join([head, "", now_line, "", tail])
+        text = "\n".join([head, "", price_line, "", tail])
     return text[:MAX_LEN]
 
 

@@ -30,7 +30,8 @@ def test_post_fits_and_is_calm(claim):
     r = analyse(parse_claim("/check " + claim), _inputs())
     text = x_poster.format_post(r)
     assert len(text) <= 280
-    assert text.startswith("Reality Check: $AVAX")
+    assert text.startswith("Someone will tell you $AVAX")
+    assert text.rstrip().endswith("(Data, not advice)")
     assert "Data, not advice" in text
     assert not BANNED.search(text), BANNED.search(text)
 
