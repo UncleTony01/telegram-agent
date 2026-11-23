@@ -68,8 +68,10 @@ def _request(method, endpoint, **kwargs):
     raise requests.RequestException("Telegram request failed")
 
 
-def send_message(chat_id, text, parse_mode=None):
+def send_message(chat_id, text, parse_mode=None, reply_markup=None):
     payload = {"chat_id": chat_id, "text": text[:4000]}
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
     if parse_mode:
         payload["parse_mode"] = parse_mode
         payload["disable_web_page_preview"] = True

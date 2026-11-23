@@ -63,6 +63,8 @@ def daily(tmp_path, monkeypatch):
     monkeypatch.setattr(x_poster, "STATE_FILE", tmp_path / "state.json")
     sent, posted, ledger = [], [], []
     monkeypatch.setattr(x_poster, "_send_owner", sent.append)
+    monkeypatch.setattr(x_poster, "send_draft", lambda c, t, h: sent.append(h + "\n" + t))
+    monkeypatch.setattr(config, "OWNER_CHAT_ID", "1", raising=False)
     monkeypatch.setattr(x_poster, "post_to_x", lambda t: posted.append(t) or "123")
     monkeypatch.setattr(x_poster, "_trending_symbols", lambda: ["AVAX"])
     monkeypatch.setattr("services.reality_check.fetch_inputs", lambda s: _inputs())
@@ -82,7 +84,7 @@ def test_preview_mode_sends_draft_once_a_day(daily, monkeypatch):
     assert x_poster.maybe_post_daily(_ts(17)) is None  # too early
     assert x_poster.maybe_post_daily(_ts(18))
     assert x_poster.maybe_post_daily(_ts(19)) is None  # already done today
-    assert posted == [] and len(sent) == 1 and "preview" in sent[0]
+    assert posted == [] and len(sent) == 1 and "ready" in sent[0]
     assert len(ledger) == 1
 
 
@@ -127,3 +129,23 @@ def test_xpost_is_owner_only(monkeypatch):
     monkeypatch.setattr(config, "OWNER_CHAT_ID", "1", raising=False)
     x_poster.handle_xpost_command("2", "/xpost")
     assert "owner" in sent[0]
+
+
+def test_intent_link_prefills_post():
+    from urllib.parse import parse_qs, urlparse
+
+    text = "Reality Check: $AVAX at 10x = $66.8\nData, not advice."
+    url = x_poster.intent_link(text)
+    assert url.startswith("https://x.com/intent/post?")
+    assert parse_qs(urlparse(url).query)["text"][0] == text
+
+
+def test_send_draft_has_copyable_text_and_button(monkeypatch):
+    calls = []
+    monkeypatch.setattr("services.telegram_service.send_message",
+                        lambda c, t, **k: calls.append((t, k)))
+    x_poster.send_draft("1", "A < B & C", "📝 Draft")
+    text, kwargs = calls[0]
+    assert "<pre>A &lt; B &amp; C</pre>" in text and kwargs["parse_mode"] == "HTML"
+    button = kwargs["reply_markup"]["inline_keyboard"][0][0]
+    assert button["text"] == "✍️ Post on X" and button["url"].startswith("https://x.com/intent/post?")

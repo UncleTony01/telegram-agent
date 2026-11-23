@@ -215,6 +215,26 @@ def post_to_x(text: str) -> str:
     return resp.json()["data"]["id"]
 
 
+# ------------------------------ Manual posting ---------------------------
+INTENT_URL = "https://x.com/intent/post"
+
+
+def intent_link(text: str) -> str:
+    """A link that opens X (app or web) with the post already written. Free: no API needed."""
+    return f"{INTENT_URL}?{urllib.parse.urlencode({'text': text}, quote_via=urllib.parse.quote)}"
+
+
+def send_draft(chat_id: str, text: str, header: str) -> None:
+    """Send a draft the owner can post in one tap, or copy by tapping the text."""
+    import html as _html
+
+    from services.telegram_service import send_message
+
+    body = f"{header}\n\n<pre>{_html.escape(text, quote=False)}</pre>\n<i>Tap the text to copy, or the button to open X with it ready.</i>"
+    markup = {"inline_keyboard": [[{"text": "✍️ Post on X", "url": intent_link(text)}]]}
+    send_message(chat_id, body, parse_mode="HTML", reply_markup=markup)
+
+
 # ------------------------------ Daily job --------------------------------
 def _send_owner(text: str) -> None:
     chat_id = getattr(config, "OWNER_CHAT_ID", None) or getattr(config, "CHAT_ID", None)
@@ -266,10 +286,12 @@ def maybe_post_daily(now: Optional[float] = None) -> Optional[str]:
             )
             return post["text"]
     else:
-        _send_owner(
-            "📝 Draft X post for today (preview: X keys aren't set, so nothing was posted):\n\n"
-            + post["text"]
-        )
+        chat_id = getattr(config, "OWNER_CHAT_ID", None) or getattr(config, "CHAT_ID", None)
+        if chat_id:
+            try:
+                send_draft(chat_id, post["text"], f"📝 Today's X post is ready ({len(post['text'])}/280)")
+            except Exception as e:
+                logger.warning("X draft send failed: %s", e)
 
     try:
         from services.hype_ledger import record_check
@@ -323,10 +345,10 @@ def handle_xpost_command(chat_id: str, text: str) -> None:
     if not post:
         send_message(chat_id, "I couldn't build a draft for that. Try /xpost or /xpost AVAX 100B")
         return
-    mode = "live: the daily post goes to X" if live_mode() else "preview: X keys not set"
+    mode = "posted automatically" if live_mode() else "sent to you to post yourself"
     hour = getattr(config, "X_POST_HOUR", 18)
-    send_message(
+    send_draft(
         chat_id,
-        f"📝 Draft ({len(post['text'])}/280 characters). Not posted.\n"
-        f"Daily post at {hour:02d}:00, {mode}.\n\n{post['text']}",
+        post["text"],
+        f"📝 Draft ({len(post['text'])}/280). Not posted.\nDaily post at {hour:02d}:00, {mode}.",
     )
