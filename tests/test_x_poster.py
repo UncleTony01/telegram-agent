@@ -71,6 +71,8 @@ def daily(tmp_path, monkeypatch):
     monkeypatch.setattr("services.reality_check.fetch_inputs", lambda s: _inputs())
     monkeypatch.setattr("services.hype_ledger.record_check", lambda r: ledger.append(r))
     monkeypatch.setattr(config, "X_POST_HOUR", 18, raising=False)
+    monkeypatch.setattr("services.post_studio.add_discussion_angle", lambda t, f: t)
+    monkeypatch.setattr("services.post_loop.available", lambda: False)  # plain fallback path
     return sent, posted, ledger
 
 
@@ -89,26 +91,40 @@ def test_preview_mode_sends_draft_once_a_day(daily, monkeypatch):
     assert len(ledger) == 1
 
 
-def test_live_mode_posts(daily, monkeypatch):
+def test_fallback_never_posts_even_with_keys(daily, monkeypatch):
     sent, posted, ledger = daily
     for k in ("X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_SECRET"):
         monkeypatch.setattr(config, k, "x", raising=False)
-    x_poster.maybe_post_daily(_ts(18))
-    assert len(posted) == 1 and "Posted" in sent[0]
-
-
-def test_live_failure_does_not_repeat(daily, monkeypatch):
-    sent, posted, ledger = daily
-    for k in ("X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_SECRET"):
-        monkeypatch.setattr(config, k, "x", raising=False)
-
-    def boom(t):
-        raise RuntimeError("X API 402: no credits")
-
-    monkeypatch.setattr(x_poster, "post_to_x", boom)
-    x_poster.maybe_post_daily(_ts(18))
+    assert x_poster.maybe_post_daily(_ts(18))
     assert x_poster.maybe_post_daily(_ts(19)) is None
-    assert len(sent) == 1 and "didn't go out" in sent[0]
+    assert posted == [] and len(sent) == 1 and "ready" in sent[0]
+
+
+def test_daily_goes_through_post_loop_when_available(daily, monkeypatch):
+    sent, posted, ledger = daily
+    runs = []
+    monkeypatch.setattr("services.post_loop.available", lambda: True)
+    monkeypatch.setattr("services.post_loop.run_new", lambda key, pre, **k: runs.append((key, pre)) or "review")
+    for k in ("X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_SECRET"):
+        monkeypatch.setattr(config, k, "x", raising=False)
+    assert x_poster.maybe_post_daily(_ts(18))
+    assert x_poster.maybe_post_daily(_ts(19)) is None
+    assert len(runs) == 1 and runs[0][0] == "2026-11-23"
+    pre = runs[0][1]
+    assert pre["base_text"] and pre["ledger"]["claim"]["symbol"] == "AVAX"
+    assert posted == [] and sent == [] and ledger == []  # ledger is written only on approval
+
+
+def test_daily_falls_back_when_loop_breaks(daily, monkeypatch):
+    sent, posted, ledger = daily
+    monkeypatch.setattr("services.post_loop.available", lambda: True)
+
+    def boom(*a, **k):
+        raise RuntimeError("graph broke")
+
+    monkeypatch.setattr("services.post_loop.run_new", boom)
+    assert x_poster.maybe_post_daily(_ts(18))
+    assert len(sent) == 1 and posted == []
 
 
 def test_oauth_signature_matches_x_docs_example(monkeypatch):

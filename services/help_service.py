@@ -16,6 +16,7 @@ HELP_TEXT = (
     "/check AVAX 100B - Reality check a price claim (also $20 or 10x)\n"
     "/ledger - Review past claims (owner only)\n"
     "/xpost - Today's X post draft (owner only). Also: /xpost recovery | ai | dilution | hype | governance | debate | AVAX 100B\n"
+    "/redo shorter hook - Rewrite the X draft waiting for review, with your note (owner only)\n"
     "/clear - Clear conversation memory\n"
     "\n"
     "Example:\n"

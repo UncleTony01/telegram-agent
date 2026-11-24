@@ -59,6 +59,18 @@ while True:
             for update in updates["result"]:
                 last_update_id = update["update_id"]
 
+                if "callback_query" in update:
+                    cb = update["callback_query"]
+                    try:
+                        if str(cb.get("data") or "").startswith("pl:"):
+                            from services.post_loop import handle_callback
+                        else:
+                            from services.order_service import handle_callback
+                        handle_callback(cb)
+                    except Exception:
+                        traceback.print_exc()
+                    continue
+
                 if "message" not in update:
                     continue
 

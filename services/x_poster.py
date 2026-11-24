@@ -8,11 +8,13 @@ Reality Check on a "10x" claim and posts a short, calm summary to X.
   of large coins is used in turn.
 - Posts never contain links: on X's pay-per-use API a post with a URL costs
   about 13x more than a plain one.
-- Until all four X keys are in .env, nothing is posted. The day's draft goes to
-  the owner on Telegram instead ("preview mode"), so you can judge the posts
-  before paying for anything.
-- Every post is also written to the hype ledger, so /ledger can later show
-  whether the claim happened.
+- Nothing is ever posted without the owner's approval. The day's draft goes
+  through Loop 1 (services/post_loop.py): a critic scores it, weak drafts are
+  rewritten, then the owner taps Approve / Redo / Skip on Telegram. With all
+  four X keys in .env an approved draft is posted via the API; without them
+  the owner gets a "Post on X" button.
+- Approved Reality Checks are written to the hype ledger, so /ledger can later
+  show whether the claim happened.
 - /xpost (owner only) shows a draft now, without posting: /xpost or /xpost AVAX 100B.
 """
 from __future__ import annotations
@@ -192,7 +194,7 @@ def build_post(claim_text: Optional[str] = None, state: Optional[Dict] = None,
             logger.warning("%s post failed, falling back to a Reality Check: %s", fmt, e)
             post = None
         if post:
-            return {"text": _with_angle(post["text"], fmt), "report": None,
+            return {"text": _with_angle(post["text"], fmt), "base_text": post["text"], "report": None,
                     "symbol": post.get("symbol"), "format": fmt}
         fmt = "reality"
 
@@ -207,7 +209,8 @@ def build_post(claim_text: Optional[str] = None, state: Optional[Dict] = None,
     if not inputs:
         return None
     report = analyse(claim, inputs)
-    return {"text": _with_angle(format_post(report), "reality"), "report": report,
+    base = format_post(report)
+    return {"text": _with_angle(base, "reality"), "base_text": base, "report": report,
             "symbol": report["symbol"], "format": "reality"}
 
 
@@ -327,24 +330,25 @@ def maybe_post_daily(now: Optional[float] = None) -> Optional[str]:
         state.setdefault("recent", {})[post["symbol"]] = now
     _write_state(state)
 
-    if live_mode():
-        try:
-            post_id = post_to_x(post["text"])
-            logger.info("Posted to X: %s", post_id)
-            _send_owner(f"📝 Posted today's Reality Check to X:\n\n{post['text']}")
-        except Exception as e:
-            logger.error("X post failed: %s", e)
-            _send_owner(
-                f"📝 Today's X post didn't go out ({e}). I'll try again tomorrow.\n\nDraft:\n\n{post['text']}"
-            )
+    # Loop 1: critic + rewrites, then the owner approves on Telegram. Posting to X
+    # (when keys exist) happens only after that approval.
+    try:
+        from services import post_loop
+
+        if post_loop.available():
+            post_loop.run_new(today, post_loop.to_prebuilt(post))
             return post["text"]
-    else:
-        chat_id = getattr(config, "OWNER_CHAT_ID", None) or getattr(config, "CHAT_ID", None)
-        if chat_id:
-            try:
-                send_draft(chat_id, post["text"], f"📝 Today's X post is ready ({len(post['text'])}/280)", fmt=post.get("format", "reality"))
-            except Exception as e:
-                logger.warning("X draft send failed: %s", e)
+    except Exception as e:
+        logger.warning("Post loop failed, sending the plain draft: %s", e)
+
+    # Fallback: the plain draft with its image card. Never posted automatically.
+    chat_id = getattr(config, "OWNER_CHAT_ID", None) or getattr(config, "CHAT_ID", None)
+    if chat_id:
+        try:
+            send_draft(chat_id, post["text"], f"📝 Today's X post is ready ({len(post['text'])}/280)",
+                       fmt=post.get("format", "reality"))
+        except Exception as e:
+            logger.warning("X draft send failed: %s", e)
 
     if report:
         try:
@@ -399,7 +403,17 @@ def handle_xpost_command(chat_id: str, text: str) -> None:
     if not post:
         send_message(chat_id, "I couldn't build a draft for that. Try /xpost, /xpost recovery, /xpost ai or /xpost AVAX 100B")
         return
-    mode = "posted automatically" if live_mode() else "sent to you to post yourself"
+    try:
+        from services import post_loop
+
+        if post_loop.available():
+            send_message(chat_id, "📝 Drafting. A critic scores it and rewrites weak versions, "
+                                  "then you get it to approve. About a minute.")
+            post_loop.start_manual(chat_id, post_loop.to_prebuilt(post))
+            return
+    except Exception as e:
+        logger.warning("Post loop unavailable for /xpost: %s", e)
+    mode = "sent to you to approve" if live_mode() else "sent to you to post yourself"
     hour = getattr(config, "X_POST_HOUR", 18)
     send_draft(
         chat_id,

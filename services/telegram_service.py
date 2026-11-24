@@ -87,8 +87,30 @@ def send_message(chat_id, text, parse_mode=None, reply_markup=None):
     return response
 
 
+def answer_callback(callback_id, text=None):
+    """Stop the button's loading spinner (optionally with a short toast)."""
+    payload = {"callback_query_id": callback_id}
+    if text:
+        payload["text"] = text[:190]
+    try:
+        return _request("POST", "/answerCallbackQuery", json=payload)
+    except Exception as exc:  # a missed toast must never break the bot
+        logger.warning("answerCallbackQuery failed: %s", exc)
+
+
+def clear_buttons(chat_id, message_id):
+    """Remove the inline buttons from a message so they can't be tapped twice."""
+    if not message_id:
+        return None
+    try:
+        return _request("POST", "/editMessageReplyMarkup",
+                        json={"chat_id": chat_id, "message_id": message_id, "reply_markup": {"inline_keyboard": []}})
+    except Exception as exc:
+        logger.warning("editMessageReplyMarkup failed: %s", exc)
+
+
 def get_updates(offset=None):
-    params = {"timeout": 30}
+    params = {"timeout": 30, "allowed_updates": '["message","callback_query"]'}
 
     if offset is not None:
         params["offset"] = offset

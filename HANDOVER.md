@@ -1,4 +1,4 @@
-# Uncle Tony – handover (2026-11-23)
+# Uncle Tony – handover (updated 2026-11-24)
 
 Read this first when continuing work from a new Claude session (e.g. Claude Code on mobile/web).
 
@@ -15,6 +15,27 @@ Read this first when continuing work from a new Claude session (e.g. Claude Code
   Runs as a sandboxed system service (`sudo systemctl status uncle-tony-api`) that cannot read `.env`,
   the OKX key, SSH keys or wallets. Caddy gives HTTPS. Configs in `deploy/`.
   Test wallets live on the server in `~/.x402/` (test money only).
+
+## Loop 1: self-improving X drafts (branch `feature/post-loop`, built 2026-11-24, NOT merged)
+Spec: `docs/LOOP1_SPEC.md`. Code: `services/post_loop.py` (LangGraph), tests `tests/test_post_loop.py`.
+- 18:00 daily (and `/xpost`): draft → **guard** (≤280, banned words, no links/hashtags, disclaimer,
+  every number/$TICKER must come from the market data) → DeepSeek **critic** (0–10 rubric, JSON) →
+  **revise** if score < 8 (max 3 rewrites) → owner gets the image card with **✅ Approve · 🔁 Redo · ✖ Skip**.
+- `/redo <note>` (owner only, ≤200 chars) rewrites the waiting draft with your note (2 more rounds).
+- Nothing is posted to X without ✅ Approve, even with X keys. Without keys, Approve sends the
+  "✍️ Post on X" button. Approved Reality Checks go to the hype ledger.
+- Max 12 DeepSeek calls a day. Any AI failure or a missing `DEEPSEEK_API_KEY` sends the plain draft for review.
+  If LangGraph fails to load, the bot falls back to the old plain draft (never auto-posts).
+- Files (mode 0600, in git-ignored `data/`): `post_loop.sqlite` (paused reviews survive restarts),
+  `post_loop_state.json` (daily AI-call count, pending draft), `post_loop_log.jsonl` (results for Loop 2).
+- New deps pinned: `langgraph==1.2.24`, `langgraph-checkpoint-sqlite==3.1.3` (pip-audit: clean).
+- **Deploy note:** the server also runs `feature/raise-order` (`/raise`), which is kept OFF GitHub on purpose
+  (it contains the owner's cost basis). Deploy from the laptop's local branch `local/post-loop-deploy`
+  (= this branch + raise-order), otherwise `/raise` disappears from the server.
+  Steps: rsync as usual (excludes `.env`, `data/`), then on the VM
+  `~/telegram-agent/.venv/bin/pip install -r ~/telegram-agent/requirements.txt` and
+  `systemctl --user restart uncle-tony`. Check the server `.env` still has `DEEPSEEK_API_KEY`.
+  Test: `/xpost`, tap ✅ / 🔁 / ✖, try `/redo make it spicier`.
 
 ## Server
 - Oracle **trial** VM, 147.224.181.200, user `ubuntu`, Ubuntu 24.04 arm64. **Trial ends ~6 Dec 2026**:
