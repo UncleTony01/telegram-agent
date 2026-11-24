@@ -197,8 +197,11 @@ def _try_ai_enhancement(symbol: str, analysis_object, local_report: str) -> str:
         # Create prompt for AI
         prompt = _build_ai_narration_prompt(report)
         
-        # Try to get AI enhancement
-        ai_response = generate_reply(prompt)
+        # AI narration, checked by the analysis loop (numbers from the data,
+        # calm tone, critic + one rewrite). None means use the local report.
+        from services.analysis_loop import checked_text
+
+        ai_response = checked_text("narration", prompt)
         
         if ai_response and len(ai_response) > 100:
             # AI succeeded - return enhanced report
@@ -269,7 +272,9 @@ RISK:
 - Level: {report.risk_level}
 - Factors: {', '.join(report.risk_factors) if report.risk_factors else 'None'}
 
-Please generate a professional, actionable market analysis report. Keep it concise and focused on the key trading insights. Do NOT mention AI, bots, or technical systems - just provide the analysis directly.
+Write a concise, plain-English market analysis from this data only. Explain what the levels and indicators mean and what to watch next.
+Tone: calm and balanced, like a patient mentor. The reader wants to avoid fear and greed: no hype or fear words, no urgency, no "buy now" or "sell now" instructions, no predictions stated as fact.
+Use only numbers from the data above. Plain text, no markdown. Do NOT mention AI, bots, or technical systems - just provide the analysis directly.
 """
     return prompt
 

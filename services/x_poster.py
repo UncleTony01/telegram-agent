@@ -185,6 +185,10 @@ def build_post(claim_text: Optional[str] = None, state: Optional[Dict] = None,
         claim_text = None
     elif not claim_text:
         fmt = format_for_day(datetime.fromtimestamp(now).weekday())
+    if fmt == "data":
+        from services.content_mix import next_data_format
+
+        fmt = next_data_format(state)
 
     if fmt != "reality":
         recent = {s for s, ts in (state.get("recent") or {}).items() if now - ts < REPEAT_DAYS * 86400}
@@ -401,7 +405,7 @@ def handle_xpost_command(chat_id: str, text: str) -> None:
         send_message(chat_id, "Market data is unavailable right now. Try again in a minute.")
         return
     if not post:
-        send_message(chat_id, "I couldn't build a draft for that. Try /xpost, /xpost recovery, /xpost ai or /xpost AVAX 100B")
+        send_message(chat_id, "I couldn't build a draft for that. Try /xpost, /xpost ai, /xpost journey, /xpost data or /xpost AVAX 100B")
         return
     try:
         from services import post_loop

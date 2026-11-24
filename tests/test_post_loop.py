@@ -36,7 +36,7 @@ class Fakes:
         self.critic_calls, self.revise_calls, self.published = [], [], []
         self.allow = reserve
 
-    def critic(self, draft):
+    def critic(self, draft, fmt="reality"):
         self.critic_calls.append(draft)
         s = self.scores.pop(0) if len(self.scores) > 1 else self.scores[0]
         return s if isinstance(s, str) else json.dumps({"score": s, "issues": ["hook is weak"]})
@@ -161,7 +161,7 @@ def test_malformed_critic_goes_to_review_without_looping():
 
 def test_critic_exception_falls_back_to_plain_draft():
     f = Fakes()
-    f.critic = lambda d: (_ for _ in ()).throw(RuntimeError("timeout"))
+    f.critic = lambda d, fmt=None: (_ for _ in ()).throw(RuntimeError("timeout"))
     payload = review(start(f.app()))
     assert payload["draft"] == BASE and payload["score"] == 0
 

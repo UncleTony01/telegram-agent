@@ -3,16 +3,23 @@
 The goal: stop the scroll with a sharp, honest angle, never with hype or lies.
 Opinions may be controversial; facts must be true, and nothing is buy/sell advice.
 
-    Mon  reality    Reality Check on a trending coin (services/reality_check.py)
-    Tue  recovery   The maths of getting back from a big drop from the all-time high
-    Wed  ai         A hot take on AI and agents
-    Thu  dilution   How much supply a coin can still issue
-    Fri  hype       What the most-talked-about coin actually did this week
-    Sat  governance A hot take on data, privacy and governance
+Crypto is one day in seven; the rest is agentic AI and the build journey,
+told as human experience rather than as a product pitch.
+
+    Mon  ai         Agentic AI, from first-hand experience building agents
+    Tue  journey    Build log: a real moment from building Uncle Tony, and the lesson
+    Wed  data       Crypto data post, rotating: reality -> recovery -> dilution -> hype
+    Thu  ai         Agentic AI
+    Fri  journey    Build log
+    Sat  governance Data, privacy and governance
     Sun  debate     An "agree or disagree" question to start a conversation
 
+Single data formats can still be asked for: /xpost reality | recovery | dilution | hype.
 Data posts use one CoinGecko call. Takes rotate through a library without
 repeating until every take has been used.
+
+JOURNEY_POSTS must stay true: they describe things that really happened while
+building this bot. Never add holdings, amounts, prices paid, IPs or keys.
 """
 from __future__ import annotations
 
@@ -23,8 +30,10 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 MAX_LEN = 280
-WEEKLY = ["reality", "recovery", "ai", "dilution", "hype", "governance", "debate"]
-FORMATS = set(WEEKLY)
+WEEKLY = ["ai", "journey", "data", "ai", "journey", "governance", "debate"]
+DATA_ROTATION = ["reality", "recovery", "dilution", "hype"]
+DATA_FORMATS = set(DATA_ROTATION)
+FORMATS = set(WEEKLY) | DATA_FORMATS
 
 STABLE_OR_WRAPPED = {
     "usdt", "usdc", "dai", "usde", "fdusd", "tusd", "usds", "pyusd", "busd", "usd1", "usdd", "gusd",
@@ -33,6 +42,15 @@ STABLE_OR_WRAPPED = {
 }
 
 AI_TAKES = [
+    "I gave my AI agent fewer permissions this month, not more.\n\nIt can read, draft and suggest. It can't act without me.\n\nThe most useful agent I've built is the one that knows its limits.",
+    "Everyone demos agents doing things.\nNobody demos the agent saying \"I'm not sure, check this first.\"\n\nThat second one is the only kind I'd trust with anything that matters.",
+    "My agent has a second agent whose only job is to criticise its work.\n\nWriter, critic, then me. The human always gets the last word.\n\nThat's not a limitation. That's the design.",
+    "Agents don't remove work. They move it: from doing the task to checking the task.\n\nIf you hate checking, you'll hate agents.",
+    "Before I automate anything I ask one question: what happens when this goes wrong at 3am while I'm asleep?\n\nIf I can't answer it, it doesn't get automated.",
+    "An AI agent that can touch money needs the same rules as a new hire on day one: small limits, clear approvals, everything written down.\n\nTrust is earned in steps.",
+    "Small, boring agents beat clever ones.\n\nMine checks data, writes a short note and waits for me. No drama. It just shows up every day.",
+    "I watched one program pay another program for an answer this week. No account, no sign-up, a fraction of a cent.\n\nAgents paying agents is closer than most people think.",
+    "The best prompt I've written for an agent wasn't clever. It was a list of things it must never do.\n\nGuardrails first, personality later.",
     "Unpopular opinion: most AI agents are just expensive notification spam.\n\nThe hard part isn't making an agent act. It's teaching it when to stay quiet.",
     "Ask an AI if your coin is undervalued and it'll agree.\nAsk why it's overvalued and it'll agree with that too.\n\nAI is a mirror, not an oracle. Build agents that check data, not ones that flatter you.",
     "The \"10-person billion-dollar company\" is the lottery version of AI.\n\nThe real version: one person saving 10 hours of boring work a week.\n\nLess exciting. Far more likely.",
@@ -65,14 +83,38 @@ DEBATE_QUESTIONS = [
     "Agree or disagree:\n\nIf you can't explain why you hold a coin in one sentence, you're gambling, not investing.",
     "Would you let an AI agent move your money if it showed you every reason first?\n\nYes or no, and why?",
     "Agree or disagree:\n\nFree AI tools are quietly training us to depend on them.",
+    "Would you let an AI agent spend $10 a month on your behalf without asking each time?\n\nWhere's your line?",
+    "Agree or disagree:\n\nThe skill that matters most in the AI era isn't coding. It's knowing what to check.",
+    "Honest question for builders: what's the one thing you'd never let an AI agent do without your approval?",
 ]
 
-LIBRARIES = {"ai": AI_TAKES, "governance": GOVERNANCE_TAKES, "debate": DEBATE_QUESTIONS}
+JOURNEY_POSTS = [
+    "I built a crypto bot whose main job is to keep me calm.\n\nNo alarm emojis, no hype words, no urgency. If a message could make me anxious or greedy, it gets rewritten.\n\nThe hardest feature wasn't code. It was tone.",
+    "My local bank card was rejected by a cloud provider, so my bot ran on my laptop for weeks, on home internet that drops when it likes.\n\nBuilding from where you are is slower. It still counts.",
+    "Today my bot drafted a post, a second AI scored it, and it rewrote itself until the score was good enough.\n\nThen it waited for me to tap Approve.\n\nThe goal isn't automation. It's automation that asks first.",
+    "My bot can change exactly one thing on my exchange account: move an order I already placed to a higher price.\n\nOnly higher, never more than 30%, and only after I tap Confirm.\n\nNarrow permissions let me sleep.",
+    "Every time someone says a coin will 10x, my bot writes the claim down.\n\nAfter 30 and 90 days it checks what actually happened.\n\nI don't need another opinion. I need a record of claims vs reality.",
+    "This week a program I built got paid by another program for the first time. One cent, in test money.\n\nTiny. But watching a machine pay for an answer, with no account and no sign-up, changed how I think about the web.",
+    "For a few hours two copies of my bot were running at once, on my laptop and on a server, fighting over the same messages.\n\nLesson: before adding features, know exactly where your software is running.",
+    "I'm not a deep technical person. I built my bot with an AI pair-programmer, one plain-English question at a time.\n\nYou don't need to know everything. You need to keep asking the next question.",
+    "My bot says good morning every day.\n\nNot to be cute. If it ever goes quiet, I know something broke before it costs me anything.\n\nSilence is the most dangerous bug.",
+    "The most useful message my trading assistant sends is often: nothing to do today.\n\nIt took me a while to see that as a feature and not a failure.",
+    "I asked my bot to stop calling losses red and gains green. Now it says unrealised, shows the facts and adds: no action needed unless it fits your plan.\n\nSame numbers. Calmer decisions.",
+]
+
+LIBRARIES = {"ai": AI_TAKES, "governance": GOVERNANCE_TAKES, "debate": DEBATE_QUESTIONS, "journey": JOURNEY_POSTS}
 
 
 # ------------------------------ Helpers ----------------------------------
 def format_for_day(weekday: int) -> str:
     return WEEKLY[weekday % 7]
+
+
+def next_data_format(state: Dict) -> str:
+    """The crypto day rotates through the data formats."""
+    idx = (int(state.get("data_idx", -1)) + 1) % len(DATA_ROTATION)
+    state["data_idx"] = idx
+    return DATA_ROTATION[idx]
 
 
 def _usd(v: float) -> str:

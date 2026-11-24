@@ -77,7 +77,7 @@ def daily(tmp_path, monkeypatch):
 
 
 def _ts(hour):
-    return datetime(2026, 11, 23, hour, 5).timestamp()
+    return datetime(2026, 11, 25, hour, 5).timestamp()  # Wednesday: the crypto (data) day
 
 
 def test_preview_mode_sends_draft_once_a_day(daily, monkeypatch):
@@ -109,7 +109,7 @@ def test_daily_goes_through_post_loop_when_available(daily, monkeypatch):
         monkeypatch.setattr(config, k, "x", raising=False)
     assert x_poster.maybe_post_daily(_ts(18))
     assert x_poster.maybe_post_daily(_ts(19)) is None
-    assert len(runs) == 1 and runs[0][0] == "2026-11-23"
+    assert len(runs) == 1 and runs[0][0] == "2026-11-25"
     pre = runs[0][1]
     assert pre["base_text"] and pre["ledger"]["claim"]["symbol"] == "AVAX"
     assert posted == [] and sent == [] and ledger == []  # ledger is written only on approval

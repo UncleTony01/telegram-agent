@@ -260,13 +260,13 @@ def _local_take(report, position: Optional[Dict]) -> str:
 
 
 def get_take(report, position: Optional[Dict]) -> str:
-    """Short AI take, with a rule-based fallback so it never fails."""
+    """Short AI take, checked by the analysis loop (facts, calm tone, critic).
+    Falls back to a rule-based take so it never fails."""
     try:
-        from core.ai import generate_reply
+        from services.analysis_loop import checked_text
 
-        text = (generate_reply(_take_prompt(report, position)) or "").strip()
-        text = re.sub(r"[*_#`]+", "", text)
-        if 20 <= len(text) <= 600:
+        text = checked_text("take", _take_prompt(report, position))
+        if text:
             return text
     except Exception as e:
         logger.info("AI take unavailable for %s: %s", report.symbol, e)

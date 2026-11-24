@@ -121,7 +121,7 @@ W, H = 1200, 675
 BG, FG, MUTED, ACCENT = (14, 15, 18), (236, 238, 242), (150, 158, 170), (90, 170, 255)
 LABELS = {
     "reality": "REALITY CHECK", "recovery": "UNPOPULAR MATHS", "dilution": "HIDDEN SUPPLY",
-    "hype": "HYPE VS DATA", "ai": "HOT TAKE · AI", "governance": "HOT TAKE · DATA", "debate": "YOUR CALL",
+    "hype": "HYPE VS DATA", "ai": "AGENTIC AI", "journey": "BUILD LOG", "governance": "HOT TAKE · DATA", "debate": "YOUR CALL",
 }
 FONT_DIRS = [
     "/usr/share/fonts/truetype/dejavu/DejaVuSans{}.ttf",

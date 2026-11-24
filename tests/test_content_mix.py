@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 
 import pytest
@@ -20,7 +21,7 @@ COINS = [
 ]
 
 
-@pytest.mark.parametrize("library", [cm.AI_TAKES, cm.GOVERNANCE_TAKES, cm.DEBATE_QUESTIONS])
+@pytest.mark.parametrize("library", [cm.AI_TAKES, cm.GOVERNANCE_TAKES, cm.DEBATE_QUESTIONS, cm.JOURNEY_POSTS])
 def test_takes_fit_and_stay_calm(library):
     for take in library:
         assert len(take) <= 280, take
@@ -29,7 +30,28 @@ def test_takes_fit_and_stay_calm(library):
 
 def test_week_has_seven_formats():
     days = [cm.format_for_day(datetime(2026, 11, 23 + i).weekday()) for i in range(7)]
-    assert days == ["reality", "recovery", "ai", "dilution", "hype", "governance", "debate"]
+    assert days == ["ai", "journey", "data", "ai", "journey", "governance", "debate"]
+    assert days.count("data") == 1  # crypto is one day in seven
+
+
+def test_data_day_rotates_through_crypto_formats():
+    state = {}
+    assert [cm.next_data_format(state) for _ in range(5)] == ["reality", "recovery", "dilution", "hype", "reality"]
+
+
+@pytest.mark.parametrize("library", [cm.AI_TAKES, cm.GOVERNANCE_TAKES, cm.DEBATE_QUESTIONS, cm.JOURNEY_POSTS])
+def test_library_posts_pass_the_post_loop_guard(library):
+    from services.post_loop import extract_facts, guard_check
+
+    for take in library:
+        assert guard_check(take, extract_facts(take), "ai") == (True, ""), take
+
+
+def test_journey_posts_keep_private_things_private():
+    private = re.compile(r"\b(BTC|AVAX|OKB|OKX)\b|\d+\.\d+\.\d+\.\d+|0x[0-9a-f]{6}|cost basis|my holdings|\$\d",
+                         re.IGNORECASE)
+    for post in cm.JOURNEY_POSTS:
+        assert not private.search(post), post
 
 
 def test_takes_rotate_without_repeats():
@@ -76,11 +98,15 @@ def test_build_post_follows_the_weekday(monkeypatch):
     from services import x_poster
 
     monkeypatch.setattr(cm, "_top_coins", lambda: COINS)
+    monday = datetime(2026, 11, 23, 18).timestamp()
+    assert x_poster.build_post(state={}, now=monday)["text"] in cm.AI_TAKES
     tuesday = datetime(2026, 11, 24, 18).timestamp()
     post = x_poster.build_post(state={}, now=tuesday)
-    assert post["format"] == "recovery" and post["report"] is None
+    assert post["format"] == "journey" and post["text"] in cm.JOURNEY_POSTS
     wednesday = datetime(2026, 11, 25, 18).timestamp()
-    assert x_poster.build_post(state={}, now=wednesday)["text"] in cm.AI_TAKES
+    state = {"data_idx": 0}  # last crypto day was a Reality Check
+    post = x_poster.build_post(state=state, now=wednesday)
+    assert post["format"] == "recovery" and state["data_idx"] == 1
 
 
 def test_named_format_and_fallback(monkeypatch):

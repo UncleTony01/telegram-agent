@@ -37,6 +37,17 @@ Spec: `docs/LOOP1_SPEC.md`. Code: `services/post_loop.py` (LangGraph), tests `te
   `systemctl --user restart uncle-tony`. Check the server `.env` still has `DEEPSEEK_API_KEY`.
   Test: `/xpost`, tap ✅ / 🔁 / ✖, try `/redo make it spicier`.
 
+## Diversified loops (branch `feature/loop-diversify`, 2026-11-24)
+- **X topics**: crypto is now 1 day in 7. Week: Mon ai · Tue journey · Wed data (rotates reality →
+  recovery → dilution → hype) · Thu ai · Fri journey · Sat governance · Sun debate (`services/content_mix.py`).
+  `journey` = true build-in-public stories told as human experience; `ai` = first-hand agentic-AI takes.
+  Journey posts must stay true and never include holdings, prices paid, IPs or keys (a test checks this).
+  The critic uses a "human" rubric (hook, human, clarity, specific detail, rules) for non-data posts.
+- **Analysis loop** (`services/analysis_loop.py`, LangGraph, no human step): the AI take on `/analysis`
+  and the AI narration for chat questions go write → guard (numbers must come from the data, calm words,
+  no buy/sell instructions, no links) → DeepSeek critic → at most 1 rewrite. Any failure → rule-based text.
+  Cap 60 DeepSeek calls/day (`data/analysis_loop_state.json`).
+
 ## Server
 - Oracle **trial** VM, 147.224.181.200, user `ubuntu`, Ubuntu 24.04 arm64. **Trial ends ~6 Dec 2026**:
   bot + API must move before then (laptop or another host).
